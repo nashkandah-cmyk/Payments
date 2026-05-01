@@ -1,0 +1,1348 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>إدارة الدفعات</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f4f3ef;--sur:#fff;--sur2:#eeede8;--sur3:#e5e4de;
+  --bor:rgba(0,0,0,0.09);--bor2:rgba(0,0,0,0.16);
+  --tx:#1c1b18;--tx2:#5c5b56;--tx3:#908f88;
+  --bl-bg:#e8f0fb;--bl-t:#1a5fa8;--bl-b:#82b3e8;
+  --gr-bg:#e8f4db;--gr-t:#38690f;--gr-b:#93c055;
+  --rd-bg:#fbebeb;--rd-t:#a02c2c;--rd-b:#ee9292;
+  --am-bg:#faecd8;--am-t:#854e0a;--am-b:#eda824;
+  --pu-bg:#eeedfb;--pu-t:#4f47b0;--pu-b:#aaa5e8;
+  --te-bg:#e0f5ee;--te-t:#0e6b52;--te-b:#58c8a2;
+  --r:10px;--rs:7px;--shadow:0 2px 12px rgba(0,0,0,0.06)
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#1c1b18;--sur:#272623;--sur2:#201f1c;--sur3:#181715;
+  --bor:rgba(255,255,255,0.09);--bor2:rgba(255,255,255,0.16);
+  --tx:#f2f0e8;--tx2:#b0ae a6;--tx3:#888780;
+  --bl-bg:#0b4278;--bl-t:#b2d2f6;--bl-b:#3480d4;
+  --gr-bg:#254d09;--gr-t:#bcdb92;--gr-b:#5f9e1e;
+  --rd-bg:#741c1c;--rd-t:#f5bebe;--rd-b:#df4a4a;
+  --am-bg:#5e3407;--am-t:#f8c870;--am-b:#e8991a;
+  --pu-bg:#231f58;--pu-t:#cac8f8;--pu-b:#7b76da;
+  --te-bg:#074d3c;--te-t:#9cddc8;--te-b:#18976e;
+  --shadow:0 2px 12px rgba(0,0,0,0.25)
+}}
+body{font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;font-size:14px;line-height:1.65}
+
+/* ── HEADER ── */
+.hdr{background:var(--sur);border-bottom:.5px solid var(--bor);padding:11px 18px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:200;box-shadow:var(--shadow)}
+.hdr-ico{width:32px;height:32px;background:var(--bl-bg);border-radius:var(--rs);display:flex;align-items:center;justify-content:center;font-size:16px}
+.hdr-title{font-size:14px;font-weight:600}
+.hdr-sub{font-size:11px;color:var(--tx3)}
+
+/* ── NAV ── */
+nav{background:var(--sur);border-bottom:.5px solid var(--bor);display:flex;overflow-x:auto;padding:0 14px}
+.nb{padding:9px 13px;border:none;background:transparent;color:var(--tx2);font-size:12px;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;font-family:inherit;font-weight:500;transition:color .15s}
+.nb.on{color:var(--bl-t);border-bottom-color:var(--bl-t)}
+.nb:hover:not(.on){color:var(--tx);background:var(--sur2)}
+
+/* ── LAYOUT ── */
+.main{max-width:800px;margin:0 auto;padding:16px 12px}
+.card{background:var(--sur);border:.5px solid var(--bor);border-radius:var(--r);padding:15px;margin-bottom:12px;box-shadow:var(--shadow)}
+.ct{font-size:10px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:11px}
+
+/* ── FORM ── */
+.fg{display:grid;gap:10px;margin-bottom:10px}
+.fg2{grid-template-columns:1fr 1fr}
+.fg3{grid-template-columns:1fr 1fr 1fr}
+.fg4{grid-template-columns:1fr 1fr 1fr 1fr}
+.fg1{grid-template-columns:1fr}
+.f{display:flex;flex-direction:column;gap:4px}
+label{font-size:11px;color:var(--tx2);font-weight:500}
+input,select,textarea{padding:8px 10px;border:.5px solid var(--bor2);border-radius:var(--rs);background:var(--sur);color:var(--tx);font-size:13px;width:100%;text-align:right;font-family:inherit;transition:border-color .15s,box-shadow .15s}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--bl-b);box-shadow:0 0 0 3px rgba(26,95,168,.1)}
+input[type=number]{-moz-appearance:textfield}
+input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
+textarea{resize:vertical;min-height:52px}
+input[readonly]{background:var(--sur2);color:var(--tx2)}
+
+/* ── BUTTONS ── */
+.btn{padding:8px 14px;border-radius:var(--rs);border:.5px solid var(--bor2);cursor:pointer;font-size:12px;font-weight:500;background:var(--sur);color:var(--tx);transition:opacity .15s,transform .1s;font-family:inherit;white-space:nowrap}
+.btn:hover{opacity:.82}.btn:active{transform:scale(.98)}
+.bp{background:var(--bl-bg);color:var(--bl-t);border-color:var(--bl-b)}
+.bs{background:var(--gr-bg);color:var(--gr-t);border-color:var(--gr-b)}
+.bd{background:var(--rd-bg);color:var(--rd-t);border-color:var(--rd-b)}
+.ba{background:var(--am-bg);color:var(--am-t);border-color:var(--am-b)}
+.bt{background:var(--te-bg);color:var(--te-t);border-color:var(--te-b)}
+.bpu{background:var(--pu-bg);color:var(--pu-t);border-color:var(--pu-b)}
+.bsm{font-size:11px;padding:5px 10px}
+.br{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+
+/* ── ALERTS ── */
+.al{padding:8px 12px;border-radius:var(--rs);font-size:12px;margin-bottom:10px;border:.5px solid}
+.al-s{background:var(--gr-bg);color:var(--gr-t);border-color:var(--gr-b)}
+.al-d{background:var(--rd-bg);color:var(--rd-t);border-color:var(--rd-b)}
+.al-i{background:var(--bl-bg);color:var(--bl-t);border-color:var(--bl-b)}
+.al-a{background:var(--am-bg);color:var(--am-t);border-color:var(--am-b)}
+
+/* ── METRICS ── */
+.mts{display:grid;gap:8px;margin:10px 0}
+.m2{grid-template-columns:repeat(2,1fr)}.m3{grid-template-columns:repeat(3,1fr)}.m4{grid-template-columns:repeat(4,1fr)}.m5{grid-template-columns:repeat(5,1fr)}
+.mt{background:var(--sur2);border-radius:var(--rs);padding:10px;text-align:center}
+.ml{font-size:10px;color:var(--tx3);margin-bottom:2px}
+.mv{font-size:18px;font-weight:600;color:var(--tx)}
+.mv.r{color:var(--rd-t)}.mv.g{color:var(--gr-t)}.mv.b{color:var(--bl-t)}.mv.a{color:var(--am-t)}.mv.p{color:var(--pu-t)}
+
+/* ── PROGRESS ── */
+.pw{background:var(--sur2);border-radius:999px;height:5px;overflow:hidden;margin:6px 0}
+.pb{height:100%;border-radius:999px;transition:width .4s}
+
+/* ── CARDS LIST ── */
+.item{background:var(--sur);border:.5px solid var(--bor);border-radius:var(--r);padding:12px 14px;cursor:pointer;transition:border-color .15s;margin-bottom:7px}
+.item:hover{border-color:var(--bl-b)}
+.irow{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.iname{font-size:13px;font-weight:500}
+.isub{font-size:11px;color:var(--tx3);margin-top:2px}
+.iright{text-align:left;flex-shrink:0}
+
+/* ── PAY ITEMS ── */
+.pi{display:flex;align-items:flex-start;gap:8px;padding:10px;background:var(--sur2);border-radius:var(--rs);margin-bottom:6px}
+.pl{min-width:90px;flex-shrink:0}
+.pa{font-size:13px;font-weight:600;color:var(--gr-t)}
+.psem{font-size:9px;margin-top:2px;display:inline-block;padding:1px 6px;border-radius:999px;border:.5px solid}
+.ps1{background:var(--bl-bg);color:var(--bl-t);border-color:var(--bl-b)}
+.ps2{background:var(--am-bg);color:var(--am-t);border-color:var(--am-b)}
+.pm{flex:1;font-size:11px;color:var(--tx2)}
+.prec{font-size:10px;color:var(--tx3);margin-top:1px;font-family:monospace}
+.pnote{font-size:10px;color:var(--tx2);margin-top:3px;padding:2px 6px;background:var(--sur);border-radius:4px;border:.5px solid var(--bor)}
+
+/* ── STEP BAR ── */
+.sbar{display:flex;align-items:center;gap:4px;margin-bottom:14px}
+.sdot{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;background:var(--sur2);color:var(--tx3);border:.5px solid var(--bor);flex-shrink:0}
+.sdot.on{background:var(--bl-bg);color:var(--bl-t);border-color:var(--bl-b)}
+.sdot.dn{background:var(--gr-bg);color:var(--gr-t);border-color:var(--gr-b)}
+.sline{flex:1;height:.5px;background:var(--bor)}
+
+/* ── SEGMENT ── */
+.seg{display:flex;border:.5px solid var(--bor2);border-radius:var(--rs);overflow:hidden}
+.sb{flex:1;padding:7px 5px;border:none;background:transparent;color:var(--tx2);font-size:11px;cursor:pointer;font-family:inherit;border-left:.5px solid var(--bor2);transition:background .12s;text-align:center}
+.sb:last-child{border-left:none}
+.sb.on{background:var(--bl-bg);color:var(--bl-t);font-weight:600}
+.sb.on-am{background:var(--am-bg);color:var(--am-t);font-weight:600}
+.sb:hover:not(.on):not(.on-am){background:var(--sur2)}
+
+/* ── ENROLL SEG ── */
+.eseg{display:grid;grid-template-columns:repeat(3,1fr);border:.5px solid var(--bor2);border-radius:var(--rs);overflow:hidden}
+.esb{padding:7px 4px;border:none;background:transparent;color:var(--tx2);font-size:11px;cursor:pointer;font-family:inherit;border-left:.5px solid var(--bor2);text-align:center;transition:background .12s}
+.esb:last-child{border-left:none}
+.esb.on{background:var(--pu-bg);color:var(--pu-t);font-weight:600}
+.esb:hover:not(.on){background:var(--sur2)}
+
+/* ── SUGGESTIONS ── */
+.sug{padding:7px 10px;border:.5px solid var(--bor);border-radius:var(--rs);margin-bottom:4px;cursor:pointer;font-size:12px;background:var(--sur2);transition:background .12s}
+.sug:hover{background:var(--bl-bg);color:var(--bl-t)}
+
+/* ── TAGS ── */
+.tag{display:inline-block;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:500}
+.tb{background:var(--bl-bg);color:var(--bl-t);border:.5px solid var(--bl-b)}
+.tg{background:var(--gr-bg);color:var(--gr-t);border:.5px solid var(--gr-b)}
+.ta{background:var(--am-bg);color:var(--am-t);border:.5px solid var(--am-b)}
+.tp{background:var(--pu-bg);color:var(--pu-t);border:.5px solid var(--pu-b)}
+.tt{background:var(--te-bg);color:var(--te-t);border:.5px solid var(--te-b)}
+
+/* ── AVATAR ── */
+.av{width:38px;height:38px;border-radius:50%;background:var(--bl-bg);color:var(--bl-t);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0}
+
+/* ── TABLE ── */
+.tbl{width:100%;border-collapse:collapse;font-size:12px}
+.tbl th{text-align:right;padding:7px 9px;background:var(--sur2);color:var(--tx2);font-weight:500;border-bottom:.5px solid var(--bor)}
+.tbl td{padding:7px 9px;border-bottom:.5px solid var(--bor);color:var(--tx)}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:var(--sur2)}
+
+/* ── MODAL ── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal{background:var(--sur);border-radius:var(--r);padding:18px;width:100%;max-width:480px;box-shadow:0 8px 32px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto}
+.modal-title{font-size:14px;font-weight:600;margin-bottom:14px}
+
+/* ── RECEIPT INPUT ── */
+.rec-wrap{display:flex;gap:6px;align-items:stretch}
+.rec-wrap select{width:72px;flex-shrink:0}
+.rec-wrap input{flex:1}
+
+/* ── MISC ── */
+.dvd{height:.5px;background:var(--bor);margin:11px 0}
+.empty{text-align:center;padding:28px;color:var(--tx3);font-size:12px}
+.ei{font-size:28px;margin-bottom:6px}
+.fc{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.chip{padding:3px 10px;border:.5px solid var(--bor2);border-radius:999px;font-size:11px;cursor:pointer;background:var(--sur);color:var(--tx2);font-family:inherit}
+.chip.on{background:var(--bl-bg);color:var(--bl-t);border-color:var(--bl-b)}
+.paid-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;font-size:10px;font-weight:600;background:var(--gr-bg);color:var(--gr-t);border:.5px solid var(--gr-b)}
+
+@media(max-width:520px){
+  .fg2,.fg3,.fg4{grid-template-columns:1fr 1fr}
+  .m3,.m4,.m5{grid-template-columns:1fr 1fr}
+  .eseg{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<header class="hdr">
+  <div class="hdr-ico">📋</div>
+  <div>
+    <div class="hdr-title">إدارة الدفعات المالية</div>
+    <div class="hdr-sub" id="hdr-sub">جاري التحميل...</div>
+  </div>
+</header>
+
+<nav>
+  <button class="nb on" onclick="TAB('students')">👥 الطلاب</button>
+  <button class="nb" onclick="TAB('groups')">🗂 المجموعات</button>
+  <button class="nb" onclick="TAB('pay')">💰 تسجيل دفعة</button>
+  <button class="nb" onclick="TAB('schools')">🏫 المدارس</button>
+  <button class="nb" onclick="TAB('centers')">🏢 المراكز</button>
+  <button class="nb" onclick="TAB('reports')">📊 التقارير</button>
+</nav>
+
+<div class="main">
+
+<!-- ══════════════════════════════════════════════════════════════
+     STUDENTS
+══════════════════════════════════════════════════════════════ -->
+<div id="tab-students">
+  <div class="card">
+    <div class="ct">إضافة طالب جديد</div>
+    <div id="st-al"></div>
+    <div class="fg fg2">
+      <div class="f"><label>اسم الطالب</label><input id="st-name" placeholder="الاسم الكامل"/></div>
+      <div class="f"><label>المجموعة</label><select id="st-grp" onchange="onStGrp()"><option value="">— بدون مجموعة —</option></select></div>
+    </div>
+    <div class="f" style="margin-bottom:10px">
+      <label>الفصول المسجّلة</label>
+      <div class="eseg">
+        <button class="esb on" id="es-both" onclick="setEnr('both')">فصل أول + ثاني</button>
+        <button class="esb" id="es-sem1" onclick="setEnr('sem1')">فصل أول فقط</button>
+        <button class="esb" id="es-sem2" onclick="setEnr('sem2')">فصل ثاني فقط</button>
+      </div>
+    </div>
+    <div class="fg fg3">
+      <div class="f"><label>المبلغ السنوي (د.أ)</label><input type="number" id="st-ann" placeholder="0" min="0" oninput="calcStSem()"/></div>
+      <div class="f"><label>المبلغ الفصلي</label><input type="number" id="st-sem" placeholder="تلقائي" min="0"/></div>
+      <div class="f"><label>المستهدف</label><input type="number" id="st-tgt" placeholder="بحسب الفصول" readonly/></div>
+    </div>
+    <div class="fg fg1" style="margin-bottom:10px">
+      <div class="f"><label>ملاحظات</label><input id="st-notes" placeholder="اختياري"/></div>
+    </div>
+    <button class="btn bp" onclick="addStudent()">حفظ الطالب</button>
+  </div>
+
+  <div style="display:flex;gap:7px;margin-bottom:9px;flex-wrap:wrap">
+    <input placeholder="بحث بالاسم..." oninput="renderStudents(this.value)" style="flex:1;min-width:120px"/>
+    <select id="sf-grp" onchange="renderStudents()" style="min-width:110px"><option value="">كل المجموعات</option></select>
+    <select id="sf-enr" onchange="renderStudents()" style="min-width:110px">
+      <option value="">كل الفصول</option>
+      <option value="both">فصلين</option>
+      <option value="sem1">فصل أول فقط</option>
+      <option value="sem2">فصل ثاني فقط</option>
+    </select>
+  </div>
+  <div class="fc">
+    <button class="chip on" onclick="setSF(this,'all')">الكل</button>
+    <button class="chip" onclick="setSF(this,'done')">سدّد بالكامل</button>
+    <button class="chip" onclick="setSF(this,'pending')">متبقي عليه</button>
+  </div>
+  <div id="st-list"></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     GROUPS
+══════════════════════════════════════════════════════════════ -->
+<div id="tab-groups" style="display:none">
+  <div class="card">
+    <div class="ct">إضافة مجموعة جديدة</div>
+    <div id="grp-al"></div>
+    <div class="fg fg4">
+      <div class="f"><label>اسم المجموعة</label><input id="g-name" placeholder="مثال: A1"/></div>
+      <div class="f"><label>الجيل (سنة الميلاد)</label><input type="number" id="g-gen" placeholder="2010" min="1990" max="2025"/></div>
+      <div class="f"><label>عدد الأفراد</label><input type="number" id="g-mem" placeholder="0" min="1" oninput="calcGrp()"/></div>
+      <div class="f"><label>المبلغ السنوي (د.أ)</label><input type="number" id="g-ann" placeholder="0" min="0" oninput="calcGrp()"/></div>
+    </div>
+    <div class="fg fg2" style="margin-bottom:10px">
+      <div class="f"><label>الفصلي (يُحسب)</label><input type="number" id="g-sem" placeholder="0"/></div>
+      <div class="f"><label>نصيب كل فرد سنوياً</label><input type="number" id="g-pp" readonly placeholder="يُحسب"/></div>
+    </div>
+    <button class="btn bp" onclick="addGroup()">حفظ المجموعة</button>
+  </div>
+  <div id="grp-list"></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     PAY WIZARD
+══════════════════════════════════════════════════════════════ -->
+<div id="tab-pay" style="display:none">
+  <div class="card">
+    <div class="sbar">
+      <div class="sdot on" id="d1">1</div><div class="sline"></div>
+      <div class="sdot" id="d2">2</div><div class="sline"></div>
+      <div class="sdot" id="d3">3</div><div class="sline"></div>
+      <div class="sdot" id="d4">4</div><div class="sline"></div>
+      <div class="sdot" id="d5">5</div>
+    </div>
+
+    <div id="pw1">
+      <div class="ct">اختر الجهة</div>
+      <div id="pw-al"></div>
+      <div class="fg fg1" style="margin-bottom:6px">
+        <div class="f"><label>نوع الجهة</label>
+          <div class="seg">
+            <button class="sb on" id="ent-st" onclick="setEnt('student')">طالب</button>
+            <button class="sb" id="ent-sc" onclick="setEnt('school')">مدرسة</button>
+            <button class="sb" id="ent-cn" onclick="setEnt('center')">مركز</button>
+          </div>
+        </div>
+      </div>
+      <div class="f" style="margin-bottom:8px">
+        <label id="srch-lbl">اسم الطالب</label>
+        <input id="pw-srch" placeholder="اكتب الاسم..." oninput="onPWSrch()" autocomplete="off"/>
+      </div>
+      <div id="pw-sugg"></div>
+      <div class="br" style="margin-top:8px"><button class="btn bp" onclick="confEnt()">التالي ←</button></div>
+    </div>
+
+    <div id="pw2" style="display:none">
+      <div class="ct">الفصل الدراسي</div>
+      <div id="pw2-info" style="margin-bottom:11px"></div>
+      <div id="pw2-sem-wrap">
+        <label style="font-size:11px;color:var(--tx2);display:block;margin-bottom:6px">الدفعة عن أي فصل؟</label>
+        <div class="seg">
+          <button class="sb on" id="sem1-btn" onclick="setPSem(1)">فصل أول</button>
+          <button class="sb" id="sem2-btn" onclick="setPSem(2)">فصل ثاني</button>
+        </div>
+        <div id="sem-warn" style="margin-top:6px;font-size:11px;color:var(--am-t)"></div>
+      </div>
+      <div class="br" style="margin-top:11px">
+        <button class="btn" onclick="GS(1)">→ رجوع</button>
+        <button class="btn bp" onclick="GS(3)">التالي ←</button>
+      </div>
+    </div>
+
+    <div id="pw3" style="display:none">
+      <div class="ct">تاريخ الدفعة</div>
+      <div class="f"><label>التاريخ</label><input type="date" id="pw-date"/></div>
+      <div class="br" style="margin-top:11px">
+        <button class="btn" onclick="GS(2)">→ رجوع</button>
+        <button class="btn bp" onclick="GS(4)">التالي ←</button>
+      </div>
+    </div>
+
+    <div id="pw4" style="display:none">
+      <div class="ct">تفاصيل الدفعة</div>
+      <div class="fg fg2">
+        <div class="f"><label>المبلغ (د.أ)</label><input type="number" id="pw-amt" placeholder="0" min="0" oninput="updAfter()"/></div>
+        <div class="f">
+          <label>رقم الوصل (رمز + رقم)</label>
+          <div class="rec-wrap">
+            <select id="pw-rbook"><option value="">—</option><option>A</option><option>B</option><option>C</option><option>D</option><option>E</option><option>F</option><option>G</option><option>H</option></select>
+            <input id="pw-rnum" placeholder="1234"/>
+          </div>
+        </div>
+      </div>
+      <div class="fg fg1" style="margin-bottom:8px">
+        <div class="f"><label>ملاحظة على الدفعة (اختياري)</label><textarea id="pw-note" placeholder="أي ملاحظة..."></textarea></div>
+      </div>
+      <div id="pw-after" style="font-size:11px;color:var(--tx3);margin-bottom:7px"></div>
+      <div class="br">
+        <button class="btn" onclick="GS(3)">→ رجوع</button>
+        <button class="btn bp" onclick="GS(5)">مراجعة ←</button>
+      </div>
+    </div>
+
+    <div id="pw5" style="display:none">
+      <div class="ct">مراجعة وتأكيد</div>
+      <div id="pw-sum"></div>
+      <div class="br" style="margin-top:10px">
+        <button class="btn" onclick="GS(4)">→ رجوع</button>
+        <button class="btn bs" onclick="savePay()">✓ حفظ الدفعة</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     SCHOOLS
+══════════════════════════════════════════════════════════════ -->
+<div id="tab-schools" style="display:none">
+  <div class="card">
+    <div class="ct">إضافة مدرسة</div>
+    <div id="sc-al"></div>
+    <div class="fg fg2">
+      <div class="f"><label>اسم المدرسة</label><input id="sc-name" placeholder="اسم المدرسة"/></div>
+      <div class="f"><label>الشعب المتفق عليها</label><input id="sc-classes" placeholder="مثال: 3 شعب"/></div>
+    </div>
+    <div class="fg fg2" style="margin-bottom:10px">
+      <div class="f"><label>المبلغ الإجمالي المتفق عليه (د.أ)</label><input type="number" id="sc-total" placeholder="0" min="0"/></div>
+      <div class="f"><label>ملاحظات</label><input id="sc-notes" placeholder="اختياري"/></div>
+    </div>
+    <button class="btn bp" onclick="addSchool()">حفظ المدرسة</button>
+  </div>
+  <div id="sc-list"></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     CENTERS
+══════════════════════════════════════════════════════════════ -->
+<div id="tab-centers" style="display:none">
+  <div class="card">
+    <div class="ct">إضافة مركز</div>
+    <div id="cn-al"></div>
+    <div class="fg fg2">
+      <div class="f"><label>اسم المركز</label><input id="cn-name" placeholder="اسم المركز"/></div>
+      <div class="f"><label>عدد الطلاب</label><input type="number" id="cn-cnt" placeholder="0" min="0" oninput="calcCn()"/></div>
+    </div>
+    <div class="fg fg3" style="margin-bottom:10px">
+      <div class="f"><label>المبلغ الإجمالي (د.أ)</label><input type="number" id="cn-total" placeholder="0" min="0" oninput="calcCn()"/></div>
+      <div class="f"><label>المبلغ المفرد لكل طالب</label><input type="number" id="cn-per" placeholder="يُحسب" readonly/></div>
+      <div class="f"><label>ملاحظات</label><input id="cn-notes" placeholder="اختياري"/></div>
+    </div>
+    <button class="btn bp" onclick="addCenter()">حفظ المركز</button>
+  </div>
+  <div id="cn-list"></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     REPORTS
+══════════════════════════════════════════════════════════════ -->
+<div id="tab-reports" style="display:none">
+  <div class="card">
+    <div class="ct">إعدادات التقرير</div>
+    <div class="fg fg2" style="margin-bottom:8px">
+      <div class="f"><label>من تاريخ</label><input type="date" id="r-d1" onchange="buildRpt()"/></div>
+      <div class="f"><label>إلى تاريخ</label><input type="date" id="r-d2" onchange="buildRpt()"/></div>
+    </div>
+    <div class="fg fg1" style="margin-bottom:8px">
+      <div class="f">
+        <label>بحث شامل (طالب / مدرسة / مركز / مجموعة)</label>
+        <input id="r-srch" placeholder="اكتب الاسم للفلترة..." oninput="buildRpt()"/>
+      </div>
+    </div>
+    <div class="br">
+      <button class="btn bsm" onclick="rptRange('all')">كل الفترات</button>
+      <button class="btn bsm" onclick="rptRange('sem1')">فصل أول</button>
+      <button class="btn bsm" onclick="rptRange('sem2')">فصل ثاني</button>
+      <button class="btn bsm" onclick="rptRange('year')">هذه السنة</button>
+      <button class="btn bt bsm" onclick="exportXLSX()">⬇ تصدير Excel / Numbers</button>
+    </div>
+  </div>
+  <div id="rpt-out"></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     DETAIL (students / schools / centers)
+══════════════════════════════════════════════════════════════ -->
+<div id="tab-detail" style="display:none">
+  <div id="det-body"></div>
+</div>
+
+</div><!-- /main -->
+
+<!-- MODAL -->
+<div class="overlay" id="modal" style="display:none" onclick="closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title" id="modal-title"></div>
+    <div id="modal-body"></div>
+    <div class="br" style="margin-top:12px" id="modal-btns"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+'use strict';
+const SK='pmdb_v4';
+const GAS_URL='https://script.google.com/macros/s/AKfycbxSc1fCwS9ALxvax76K1lFqmGPRCQA64-M-at92PlQWbqRBDEZfo8lhdZxgxiT8Jf2t/exec';
+let db={students:{},groups:{},schools:{},centers:{}};
+let PW={ent:null,entType:'student',sem:1,enroll:'both'};
+let stEnroll='both', sfStatus='all';
+let syncTimer=null, syncing=false;
+
+// ── SYNC UI ───────────────────────────────────────────────────────────────────
+function setSyncStatus(st){
+  let el=document.getElementById('sync-badge');
+  if(!el){
+    el=document.createElement('div');
+    el.id='sync-badge';
+    el.style.cssText='position:fixed;bottom:14px;left:14px;padding:5px 12px;border-radius:999px;font-size:11px;font-weight:500;z-index:999;transition:all .3s;border:.5px solid';
+    document.body.appendChild(el);
+  }
+  const states={
+    syncing:{bg:'var(--bl-bg)',c:'var(--bl-t)',b:'var(--bl-b)',t:'🔄 جاري المزامنة...'},
+    saved:  {bg:'var(--gr-bg)',c:'var(--gr-t)',b:'var(--gr-b)',t:'✓ محفوظ على Drive'},
+    error:  {bg:'var(--rd-bg)',c:'var(--rd-t)',b:'var(--rd-b)',t:'⚠ خطأ في المزامنة'},
+    offline:{bg:'var(--am-bg)',c:'var(--am-t)',b:'var(--am-b)',t:'📴 محفوظ محلياً'},
+  };
+  const s=states[st]||states.offline;
+  el.style.background=s.bg;el.style.color=s.c;el.style.borderColor=s.b;el.textContent=s.t;
+  if(st==='saved')setTimeout(()=>el.style.opacity='0',3000);
+  else el.style.opacity='1';
+}
+
+// ── DB ────────────────────────────────────────────────────────────────────────
+async function loadDB(){
+  try{const r=localStorage.getItem(SK);if(r)db=JSON.parse(r);}catch(e){}
+  ['students','groups','schools','centers'].forEach(k=>{if(!db[k])db[k]={};});
+  updHdr();popGrpSels();popGrpFilter();
+  setSyncStatus('syncing');
+  try{
+    // GET works fine without CORS issues
+    const res=await fetch(GAS_URL+'?t='+Date.now(),{redirect:'follow'});
+    const text=await res.text();
+    if(text&&text.trim().startsWith('{')){
+      const remote=JSON.parse(text);
+      if(remote&&typeof remote==='object'){
+        ['students','groups','schools','centers'].forEach(k=>{if(!remote[k])remote[k]={};});
+        db=remote;
+        localStorage.setItem(SK,JSON.stringify(db));
+        updHdr();popGrpSels();popGrpFilter();
+        renderStudents('');
+      }
+    }
+    setSyncStatus('saved');
+  }catch(e){setSyncStatus('offline');console.warn('Sync error:',e);}
+}
+
+function saveDB(){
+  localStorage.setItem(SK,JSON.stringify(db));
+  updHdr();
+  if(syncTimer)clearTimeout(syncTimer);
+  setSyncStatus('syncing');
+  syncTimer=setTimeout(pushToSheets,1500);
+}
+
+async function pushToSheets(){
+  try{
+    // Use no-cors to bypass CORS restriction — data still saves to sheet
+    await fetch(GAS_URL,{
+      method:'POST',
+      mode:'no-cors',
+      body:JSON.stringify(db)
+    });
+    setSyncStatus('saved');
+  }catch(e){
+    // Try fallback with image trick
+    try{
+      const encoded=encodeURIComponent(JSON.stringify(db));
+      await fetch(GAS_URL+'?data='+encoded,{redirect:'follow'});
+      setSyncStatus('saved');
+    }catch(e2){setSyncStatus('error');console.warn('Push error:',e2);}
+  }
+}
+function updHdr(){
+  const sc=obj(db.students).length,gc=obj(db.groups).length,
+        sk=obj(db.schools).length,cc=obj(db.centers).length;
+  document.getElementById('hdr-sub').textContent=
+    sc+' طالب · '+gc+' مجموعة · '+sk+' مدرسة · '+cc+' مركز';
+}
+
+// ── UTILS ─────────────────────────────────────────────────────────────────────
+const obj=o=>Object.values(o||{});
+const v=id=>document.getElementById(id)?.value??'';
+const set=(id,val)=>{const e=document.getElementById(id);if(e)e.value=val;};
+const fmt=n=>Number(n||0).toLocaleString('ar-JO',{maximumFractionDigits:2});
+const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+function al(id,msg,tp='d'){const e=document.getElementById(id);if(e)e.innerHTML=msg?`<div class="al al-${tp}">${msg}</div>`:'';}
+function totalPaid(e){return(e.payments||[]).reduce((a,p)=>a+p.amount,0);}
+function paidSem(s,sm){return(s.payments||[]).filter(p=>p.semester==sm).reduce((a,p)=>a+p.amount,0);}
+function target(s){
+  if(s.enrollType==='sem1'||s.enrollType==='sem2')return s.semester||s.annual/2;
+  return s.annual||0;
+}
+function relPaid(s){
+  if(s.enrollType==='sem1')return paidSem(s,1);
+  if(s.enrollType==='sem2')return paidSem(s,2);
+  return totalPaid(s);
+}
+function rem(s){return target(s)-relPaid(s);}
+function pctBar(paid,tgt){return tgt>0?Math.min(100,paid/tgt*100):0;}
+function barColor(pct){return pct>=100?'#5f9e1e':pct>50?'#c08a1a':'#d44444';}
+function paidInRange(e,d1,d2){
+  return(e.payments||[]).filter(p=>{
+    if(!p.date)return false;
+    if(d1&&p.date<d1)return false;
+    if(d2&&p.date>d2)return false;
+    return true;
+  }).reduce((a,p)=>a+p.amount,0);
+}
+function genId(){return '_'+Math.random().toString(36).slice(2,9);}
+function rw(l,v){return`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:5px 0;border-bottom:.5px solid var(--bor)"><span style="color:var(--tx2);font-size:11px">${l}</span><span style="font-size:12px;font-weight:500;text-align:left">${v}</span></div>`;}
+
+// ── MODAL ─────────────────────────────────────────────────────────────────────
+function showModal(title,body,btns){
+  document.getElementById('modal-title').textContent=title;
+  document.getElementById('modal-body').innerHTML=body;
+  document.getElementById('modal-btns').innerHTML=btns;
+  document.getElementById('modal').style.display='flex';
+}
+function closeModal(e){if(!e||e.target.id==='modal')document.getElementById('modal').style.display='none';}
+
+// ── TABS ──────────────────────────────────────────────────────────────────────
+function TAB(t){
+  ['students','groups','pay','schools','centers','reports','detail'].forEach(x=>{
+    const e=document.getElementById('tab-'+x);if(e)e.style.display='none';
+  });
+  document.querySelectorAll('.nb').forEach((b,i)=>b.classList.toggle('on',['students','groups','pay','schools','centers','reports'].indexOf(t)===i));
+  document.getElementById('tab-'+t).style.display='block';
+  if(t==='students'){popGrpFilter();renderStudents('');}
+  if(t==='groups')renderGroups();
+  if(t==='schools')renderSchools();
+  if(t==='centers')renderCenters();
+  if(t==='reports'){initRptDates();buildRpt();}
+  if(t==='pay')resetPW();
+}
+
+// ── ENROLLMENT ────────────────────────────────────────────────────────────────
+function setEnr(v){
+  stEnroll=v;
+  ['both','sem1','sem2'].forEach(k=>document.getElementById('es-'+k)?.classList.toggle('on',k===v));
+  calcStSem();
+}
+function calcStSem(){
+  const a=parseFloat(v('st-ann'))||0;
+  set('st-sem',(a/2).toFixed(2));
+  const tgt=stEnroll==='both'?a:a/2;
+  set('st-tgt',tgt.toFixed(2));
+}
+function onStGrp(){
+  const gid=v('st-grp');if(!gid)return;
+  const g=db.groups[gid];if(!g)return;
+  const pp=g.members>0?g.annual/g.members:g.annual;
+  set('st-ann',pp.toFixed(2));calcStSem();
+}
+
+// ── STUDENTS ──────────────────────────────────────────────────────────────────
+function addStudent(){
+  const name=v('st-name').trim();
+  if(!name)return al('st-al','الرجاء إدخال اسم الطالب');
+  const gid=v('st-grp'), g=gid&&db.groups[gid];
+  const annual=parseFloat(v('st-ann'))||0;
+  const semester=parseFloat(v('st-sem'))||annual/2;
+  const id=genId();
+  db.students[id]={id,name,groupId:gid,groupName:g?g.name:'',annual,semester,notes:v('st-notes').trim(),enrollType:stEnroll,payments:[],sem1Closed:false,sem2Closed:false,createdAt:new Date().toISOString()};
+  saveDB();al('st-al','تم حفظ الطالب '+name+' ✓','s');
+  ['st-name','st-ann','st-sem','st-tgt','st-notes'].forEach(x=>set(x,''));
+  set('st-grp','');setEnr('both');
+  renderStudents('');
+}
+let sfFilt='all';
+function setSF(btn,f){sfFilt=f;document.querySelectorAll('.chip').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderStudents('');}
+function renderStudents(q){
+  if(q===undefined)q=document.querySelector('#tab-students input')?.value||'';
+  const gid=v('sf-grp'),enr=v('sf-enr'),box=document.getElementById('st-list');
+  let all=obj(db.students);
+  if(q)all=all.filter(s=>s.name.toLowerCase().includes(q.toLowerCase())||(s.groupName||'').toLowerCase().includes(q.toLowerCase()));
+  if(gid)all=all.filter(s=>s.groupId===gid);
+  if(enr)all=all.filter(s=>s.enrollType===enr);
+  if(sfFilt==='done')all=all.filter(s=>rem(s)<=0);
+  if(sfFilt==='pending')all=all.filter(s=>rem(s)>0);
+  all.sort((a,b)=>a.name.localeCompare(b.name,'ar'));
+  if(!all.length){box.innerHTML='<div class="empty"><div class="ei">👤</div>لا يوجد طلاب</div>';return;}
+  const eTag={both:'<span class="tag tb">فصلين</span>',sem1:'<span class="tag tb">ف١</span>',sem2:'<span class="tag ta">ف٢</span>'};
+  box.innerHTML=all.map(s=>{
+    const rp=relPaid(s),tgt=target(s),r=tgt-rp,pct=pctBar(rp,tgt),bc=barColor(pct);
+    const s1c=s.sem1Closed?'<span class="paid-badge">✓ ف١ مغلق</span>':'';
+    const s2c=s.sem2Closed?'<span class="paid-badge">✓ ف٢ مغلق</span>':'';
+    return`<div class="item" onclick="openDet('student','${s.id}')">
+      <div class="irow">
+        <div><div class="iname">${s.name} ${eTag[s.enrollType||'both']||''}</div>
+          <div class="isub">${s.groupName||'بدون مجموعة'} · ${(s.payments||[]).length} دفعة ${s1c}${s2c}</div>
+        </div>
+        <div class="iright"><div style="font-size:12px;font-weight:500;color:var(--${r>0?'rd':'gr'}-t)">${fmt(r)} د.أ</div><div style="font-size:10px;color:var(--tx3)">${pct.toFixed(0)}% مسدّد</div></div>
+      </div>
+      <div class="pw"><div class="pb" style="width:${pct.toFixed(1)}%;background:${bc}"></div></div>
+    </div>`;
+  }).join('');
+}
+function popGrpFilter(){
+  const s=document.getElementById('sf-grp');if(!s)return;
+  s.innerHTML='<option value="">كل المجموعات</option>'+obj(db.groups).map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
+}
+function popGrpSels(){
+  const opts='<option value="">— بدون مجموعة —</option>'+obj(db.groups).map(g=>`<option value="${g.id}">${g.name}${g.generation?' ('+g.generation+')':''}</option>`).join('');
+  ['st-grp'].forEach(id=>{const e=document.getElementById(id);if(e)e.innerHTML=opts;});
+}
+
+// ── GROUPS ────────────────────────────────────────────────────────────────────
+function calcGrp(){
+  const a=parseFloat(v('g-ann'))||0,m=parseInt(v('g-mem'))||0;
+  set('g-sem',(a/2).toFixed(2));
+  set('g-pp',m>0?(a/m).toFixed(2):'');
+}
+function addGroup(){
+  const name=v('g-name').trim();
+  if(!name)return al('grp-al','أدخل اسم المجموعة');
+  const id=genId();
+  db.groups[id]={id,name,generation:v('g-gen').trim(),members:parseInt(v('g-mem'))||0,annual:parseFloat(v('g-ann'))||0,semester:parseFloat(v('g-sem'))||0};
+  saveDB();popGrpSels();popGrpFilter();renderGroups();
+  al('grp-al','تم حفظ المجموعة '+name,'s');
+  ['g-name','g-gen','g-mem','g-ann','g-sem','g-pp'].forEach(x=>set(x,''));
+}
+function renderGroups(){
+  const box=document.getElementById('grp-list');
+  const gs=obj(db.groups);
+  if(!gs.length){box.innerHTML='<div class="empty"><div class="ei">🗂</div>لا توجد مجموعات</div>';return;}
+  box.innerHTML=gs.map(g=>{
+    const sts=obj(db.students).filter(s=>s.groupId===g.id);
+    const tot=sts.reduce((a,s)=>a+totalPaid(s),0);
+    return`<div class="item" onclick="openGrpDetail('${g.id}')">
+      <div class="irow">
+        <div><div class="iname">${g.name} ${g.generation?'<span class="tag tp">'+g.generation+'</span>':''}</div>
+          <div class="isub">${g.members} فرد · ف/فرد ${fmt(g.members>0?g.annual/g.members:0)} · محصّل ${fmt(tot)} د.أ · ${sts.length} طالب</div>
+        </div>
+        <button class="btn bd bsm" onclick="event.stopPropagation();delGrp('${g.id}')">حذف</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function openGrpDetail(id){
+  const g=db.groups[id];if(!g)return;
+  const sts=obj(db.students).filter(s=>s.groupId===id);
+  showModal('تفاصيل مجموعة '+g.name,`
+    <div class="mts m3">
+      <div class="mt"><div class="ml">عدد الأفراد</div><div class="mv">${g.members}</div></div>
+      <div class="mt"><div class="ml">المبلغ السنوي</div><div class="mv">${fmt(g.annual)}</div></div>
+      <div class="mt"><div class="ml">نصيب الفرد</div><div class="mv">${fmt(g.members>0?g.annual/g.members:0)}</div></div>
+    </div>
+    <div class="dvd"></div>
+    <div style="font-size:12px;font-weight:500;margin-bottom:7px;color:var(--tx2)">تعديل عدد الأفراد</div>
+    <div class="fg fg2">
+      <div class="f"><label>العدد الجديد</label><input type="number" id="modal-mem" value="${g.members}" min="1"/></div>
+      <div class="f"><label>المبلغ السنوي الجديد</label><input type="number" id="modal-ann" value="${g.annual}" min="0"/></div>
+    </div>
+    <div id="modal-grp-calc" style="font-size:11px;color:var(--tx3);margin-top:4px"></div>
+  `,`<button class="btn bp" onclick="applyGrpChange('${id}')">تطبيق التغيير</button>
+     <button class="btn" onclick="closeModal()">إلغاء</button>`);
+}
+function applyGrpChange(gid){
+  const g=db.groups[gid];if(!g)return;
+  const newMem=parseInt(v('modal-mem'))||g.members;
+  const newAnn=parseFloat(v('modal-ann'))||g.annual;
+  const oldPP=g.members>0?g.annual/g.members:g.annual;
+  const newPP=newMem>0?newAnn/newMem:newAnn;
+  const diff=newPP-oldPP;
+  g.members=newMem;g.annual=newAnn;g.semester=newAnn/2;
+  const sts=obj(db.students).filter(s=>s.groupId===gid);
+  sts.forEach(s=>{
+    s.annual=newPP;s.semester=newPP/2;
+    if(s.enrollType!=='both')s.semester=newPP/2;
+    if(diff!==0){
+      // show note on student
+      s.notes=(s.notes||'')+(s.notes?' | ':'')+`تعديل المجموعة: ${diff>0?'+':''} ${fmt(diff)} د.أ`;
+    }
+  });
+  saveDB();closeModal();renderGroups();
+  al('grp-al',`تم تحديث المجموعة. الفرق على كل طالب: ${diff>0?'+':''}${fmt(diff)} د.أ`,'s');
+}
+function delGrp(id){
+  if(!confirm('حذف المجموعة؟'))return;
+  delete db.groups[id];saveDB();popGrpSels();popGrpFilter();renderGroups();
+}
+
+// ── PAY WIZARD ────────────────────────────────────────────────────────────────
+function resetPW(){
+  PW={ent:null,entType:'student',sem:1};
+  ['pw-srch','pw-amt','pw-rnum','pw-note'].forEach(x=>set(x,''));
+  set('pw-rbook','');
+  document.getElementById('pw-sugg').innerHTML='';
+  al('pw-al','','');
+  setEnt('student');GS(1);
+}
+function setEnt(t){
+  PW.entType=t;
+  ['student','school','center'].forEach(k=>{
+    const e=document.getElementById('ent-'+k.slice(0,2));
+    if(e)e.classList.toggle('on',k===t);
+  });
+  const lbl={student:'اسم الطالب',school:'اسم المدرسة',center:'اسم المركز'}[t];
+  document.getElementById('srch-lbl').textContent=lbl;
+  set('pw-srch','');document.getElementById('pw-sugg').innerHTML='';
+  // hide sem for schools/centers
+  const sw=document.getElementById('pw2-sem-wrap');
+  if(sw)sw.style.display=t==='student'?'block':'none';
+}
+function onPWSrch(){
+  const q=v('pw-srch').toLowerCase().trim();
+  const box=document.getElementById('pw-sugg');
+  if(!q){box.innerHTML='';return;}
+  let items=[];
+  if(PW.entType==='student')items=obj(db.students).filter(s=>s.name.toLowerCase().includes(q));
+  else if(PW.entType==='school')items=obj(db.schools).filter(s=>s.name.toLowerCase().includes(q));
+  else items=obj(db.centers).filter(s=>s.name.toLowerCase().includes(q));
+  if(!items.length){box.innerHTML='<div style="font-size:11px;color:var(--tx3);padding:6px 0">لا يوجد نتائج</div>';return;}
+  box.innerHTML=items.slice(0,6).map(x=>`<div class="sug" onclick="pickEnt('${x.id}')">${x.name}</div>`).join('');
+}
+function pickEnt(id){
+  const src=PW.entType==='student'?db.students:PW.entType==='school'?db.schools:db.centers;
+  PW.ent=src[id];set('pw-srch',PW.ent.name);document.getElementById('pw-sugg').innerHTML='';
+}
+function confEnt(){
+  if(!PW.ent){
+    const q=v('pw-srch').toLowerCase().trim();
+    const src=PW.entType==='student'?db.students:PW.entType==='school'?db.schools:db.centers;
+    const m=obj(src).filter(x=>x.name.toLowerCase().includes(q));
+    if(m.length===1)PW.ent=m[0];
+  }
+  if(!PW.ent)return al('pw-al','الرجاء اختيار جهة من القائمة');
+  al('pw-al','','');GS(2);
+}
+function setPSem(n){
+  PW.sem=n;
+  document.getElementById('sem1-btn').classList.toggle('on',n===1);
+  document.getElementById('sem2-btn').classList.toggle('on',n===2);
+  const w=document.getElementById('sem-warn');
+  if(PW.ent&&PW.entType==='student'){
+    if(PW.ent.enrollType==='sem1'&&n===2)w.textContent='تنبيه: الطالب مسجّل فصل أول فقط';
+    else if(PW.ent.enrollType==='sem2'&&n===1)w.textContent='تنبيه: الطالب مسجّل فصل ثاني فقط';
+    else w.textContent='';
+  }
+}
+function updAfter(){
+  if(!PW.ent)return;
+  const amt=parseFloat(v('pw-amt'))||0;
+  if(!amt)return;
+  let rp,tgt;
+  if(PW.entType==='student'){rp=relPaid(PW.ent);tgt=target(PW.ent);}
+  else{rp=totalPaid(PW.ent);tgt=PW.ent.total||0;}
+  const after=tgt-rp-amt;
+  const el=document.getElementById('pw-after');
+  if(el)el.textContent='المتبقي بعد الدفعة: '+fmt(after)+' د.أ';
+}
+function GS(n){
+  [1,2,3,4,5].forEach(i=>{
+    document.getElementById('pw'+i).style.display=i===n?'block':'none';
+    const d=document.getElementById('d'+i);
+    if(d)d.className='sdot'+(i<n?' dn':i===n?' on':'');
+  });
+  if(n===2&&PW.ent){
+    let info='';
+    if(PW.entType==='student'){
+      const s=PW.ent,rp=relPaid(s),tgt=target(s),r=tgt-rp;
+      const p1=paidSem(s,1),p2=paidSem(s,2);
+      const eL={both:'فصلين',sem1:'فصل أول فقط',sem2:'فصل ثاني فقط'}[s.enrollType||'both'];
+      info=`<span class="tag tp" style="margin-bottom:7px;display:inline-block">${eL}</span>
+        <div class="mts m4">
+          <div class="mt"><div class="ml">المستهدف</div><div class="mv">${fmt(tgt)}</div></div>
+          <div class="mt"><div class="ml">مدفوع ف١</div><div class="mv b">${fmt(p1)}</div></div>
+          <div class="mt"><div class="ml">مدفوع ف٢</div><div class="mv a">${fmt(p2)}</div></div>
+          <div class="mt"><div class="ml">المتبقي</div><div class="mv ${r>0?'r':'g'}">${fmt(r)}</div></div>
+        </div>`;
+    }else{
+      const rp=totalPaid(PW.ent),tgt=PW.ent.total||0,r=tgt-rp;
+      info=`<div class="mts m3">
+        <div class="mt"><div class="ml">المتفق عليه</div><div class="mv">${fmt(tgt)}</div></div>
+        <div class="mt"><div class="ml">المدفوع</div><div class="mv g">${fmt(rp)}</div></div>
+        <div class="mt"><div class="ml">المتبقي</div><div class="mv ${r>0?'r':'g'}">${fmt(r)}</div></div>
+      </div>`;
+    }
+    document.getElementById('pw2-info').innerHTML=info;
+    setPSem(PW.sem);
+  }
+  if(n===3&&!v('pw-date'))set('pw-date',new Date().toISOString().split('T')[0]);
+  if(n===5&&PW.ent){
+    const amt=parseFloat(v('pw-amt'))||0,date=v('pw-date');
+    const rb=v('pw-rbook'),rn=v('pw-rnum');
+    const recFull=rb&&rn?rb+'-'+rn:rn||rb||'—';
+    const note=v('pw-note');
+    let rp,tgt;
+    if(PW.entType==='student'){rp=relPaid(PW.ent);tgt=target(PW.ent);}
+    else{rp=totalPaid(PW.ent);tgt=PW.ent.total||0;}
+    const nr=tgt-rp-amt;
+    const semLabel=PW.entType==='student'?PW.sem===1?'فصل أول':'فصل ثاني':'—';
+    document.getElementById('pw-sum').innerHTML=`
+      <div style="background:var(--sur2);border-radius:var(--rs);padding:12px;font-size:12px">
+        ${rw('الجهة','<strong>'+esc(PW.ent.name)+'</strong>')}
+        ${PW.entType==='student'?rw('الفصل',semLabel):''}
+        ${rw('التاريخ',date)}
+        ${rw('المبلغ','<strong style="color:var(--gr-t)">'+fmt(amt)+' د.أ</strong>')}
+        ${recFull!=='—'?rw('رقم الوصل','<span style="font-family:monospace">'+recFull+'</span>'):''}
+        ${note?rw('ملاحظة',esc(note)):''}
+        <div style="height:.5px;background:var(--bor);margin:7px 0"></div>
+        ${rw('المتبقي','<strong style="color:var(--'+(nr>0?'rd':'gr')+'-t)">'+fmt(nr)+' د.أ</strong>')}
+      </div>`;
+  }
+}
+function savePay(){
+  if(!PW.ent)return;
+  const amount=parseFloat(v('pw-amt'))||0,date=v('pw-date');
+  if(!amount||!date)return;
+  const rb=v('pw-rbook'),rn=v('pw-rnum');
+  const receipt=rb&&rn?rb+'-'+rn:rn||rb||'';
+  const note=v('pw-note').trim();
+  const p={id:genId(),amount,date,receipt,note,semester:PW.sem,createdAt:new Date().toISOString()};
+  const src=PW.entType==='student'?db.students:PW.entType==='school'?db.schools:db.centers;
+  if(!src[PW.ent.id].payments)src[PW.ent.id].payments=[];
+  src[PW.ent.id].payments.push(p);
+  saveDB();PW.ent=src[PW.ent.id];
+  let rp,tgt;
+  if(PW.entType==='student'){rp=relPaid(PW.ent);tgt=target(PW.ent);}
+  else{rp=totalPaid(PW.ent);tgt=PW.ent.total||0;}
+  const r=tgt-rp;
+  document.getElementById('pw5').innerHTML=`
+    <div class="al al-s">تم حفظ الدفعة بنجاح ✓</div>
+    <div class="mts m3">
+      <div class="mt"><div class="ml">المستهدف</div><div class="mv">${fmt(tgt)}</div></div>
+      <div class="mt"><div class="ml">إجمالي المدفوع</div><div class="mv g">${fmt(rp)}</div></div>
+      <div class="mt"><div class="ml">المتبقي</div><div class="mv ${r>0?'r':'g'}">${fmt(r)}</div></div>
+    </div>
+    <div class="br" style="margin-top:10px">
+      <button class="btn bs" onclick="resetPW()">+ دفعة جديدة</button>
+      <button class="btn bp" onclick="openDet('${PW.entType}','${PW.ent.id}')">الملف الكامل</button>
+    </div>`;
+}
+
+// ── SCHOOLS ───────────────────────────────────────────────────────────────────
+function addSchool(){
+  const name=v('sc-name').trim();
+  if(!name)return al('sc-al','أدخل اسم المدرسة');
+  const id=genId();
+  db.schools[id]={id,name,classes:v('sc-classes').trim(),total:parseFloat(v('sc-total'))||0,notes:v('sc-notes').trim(),payments:[]};
+  saveDB();renderSchools();al('sc-al','تم حفظ المدرسة '+name,'s');
+  ['sc-name','sc-classes','sc-total','sc-notes'].forEach(x=>set(x,''));
+}
+function renderSchools(){
+  const box=document.getElementById('sc-list');
+  const scs=obj(db.schools);
+  if(!scs.length){box.innerHTML='<div class="empty"><div class="ei">🏫</div>لا توجد مدارس</div>';return;}
+  box.innerHTML=scs.map(s=>{
+    const rp=totalPaid(s),r=s.total-rp,pct=pctBar(rp,s.total),bc=barColor(pct);
+    return`<div class="item" onclick="openDet('school','${s.id}')">
+      <div class="irow">
+        <div><div class="iname">${s.name}</div><div class="isub">${s.classes||''} · ${(s.payments||[]).length} دفعة</div></div>
+        <div class="iright"><div style="font-size:12px;font-weight:500;color:var(--${r>0?'rd':'gr'}-t)">${fmt(r)} د.أ</div><div style="font-size:10px;color:var(--tx3)">${pct.toFixed(0)}%</div></div>
+      </div>
+      <div class="pw"><div class="pb" style="width:${pct.toFixed(1)}%;background:${bc}"></div></div>
+    </div>`;
+  }).join('');
+}
+
+// ── CENTERS ───────────────────────────────────────────────────────────────────
+function calcCn(){
+  const t=parseFloat(v('cn-total'))||0,c=parseInt(v('cn-cnt'))||0;
+  set('cn-per',c>0?(t/c).toFixed(2):'');
+}
+function addCenter(){
+  const name=v('cn-name').trim();
+  if(!name)return al('cn-al','أدخل اسم المركز');
+  const id=genId();
+  const total=parseFloat(v('cn-total'))||0,cnt=parseInt(v('cn-cnt'))||0;
+  db.centers[id]={id,name,studentCount:cnt,total,perStudent:cnt>0?total/cnt:0,notes:v('cn-notes').trim(),payments:[],customTotal:total};
+  saveDB();renderCenters();al('cn-al','تم حفظ المركز '+name,'s');
+  ['cn-name','cn-cnt','cn-total','cn-per','cn-notes'].forEach(x=>set(x,''));
+}
+function renderCenters(){
+  const box=document.getElementById('cn-list');
+  const cns=obj(db.centers);
+  if(!cns.length){box.innerHTML='<div class="empty"><div class="ei">🏢</div>لا توجد مراكز</div>';return;}
+  box.innerHTML=cns.map(c=>{
+    const tgt=c.customTotal||c.total||0,rp=totalPaid(c),r=tgt-rp,pct=pctBar(rp,tgt),bc=barColor(pct);
+    return`<div class="item" onclick="openDet('center','${c.id}')">
+      <div class="irow">
+        <div><div class="iname">${c.name}</div><div class="isub">${c.studentCount} طالب · ${fmt(c.perStudent)} /طالب · ${(c.payments||[]).length} دفعة</div></div>
+        <div class="iright"><div style="font-size:12px;font-weight:500;color:var(--${r>0?'rd':'gr'}-t)">${fmt(r)} د.أ</div><div style="font-size:10px;color:var(--tx3)">${pct.toFixed(0)}%</div></div>
+      </div>
+      <div class="pw"><div class="pb" style="width:${pct.toFixed(1)}%;background:${bc}"></div></div>
+    </div>`;
+  }).join('');
+}
+
+// ── DETAIL ────────────────────────────────────────────────────────────────────
+function openDet(type,id){
+  ['students','groups','pay','schools','centers','reports'].forEach(x=>document.getElementById('tab-'+x).style.display='none');
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
+  document.getElementById('tab-detail').style.display='block';
+  if(type==='student')renderStDet(id);
+  else if(type==='school')renderScDet(id);
+  else if(type==='center')renderCnDet(id);
+}
+function renderStDet(id){
+  const s=db.students[id];if(!s)return;
+  const rp=relPaid(s),tgt=target(s),r=tgt-rp,pct=pctBar(rp,tgt),bc=barColor(pct);
+  const p1=paidSem(s,1),p2=paidSem(s,2);
+  const ini=s.name.split(' ').slice(0,2).map(w=>w[0]).join('');
+  const eL={both:'فصل أول + ثاني',sem1:'فصل أول فقط',sem2:'فصل ثاني فقط'}[s.enrollType||'both'];
+  const sorted=[...(s.payments||[])].sort((a,b)=>b.date<a.date?-1:1);
+
+  document.getElementById('det-body').innerHTML=`
+    <div class="card">
+      <button class="btn bsm" onclick="TAB('students')" style="margin-bottom:11px">← رجوع</button>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:13px">
+        <div class="av">${ini}</div>
+        <div>
+          <div style="font-size:15px;font-weight:600">${s.name}</div>
+          <div style="font-size:11px;color:var(--tx3)">${s.groupName||'بدون مجموعة'}${s.notes?' · '+s.notes:''}</div>
+          <span class="tag tp" style="display:inline-block;margin-top:3px">${eL}</span>
+        </div>
+      </div>
+      <div class="mts m5">
+        <div class="mt"><div class="ml">المستهدف</div><div class="mv">${fmt(tgt)}</div></div>
+        <div class="mt"><div class="ml">الفصلي</div><div class="mv">${fmt(s.semester)}</div></div>
+        <div class="mt"><div class="ml">مدفوع ف١</div><div class="mv b">${fmt(p1)}</div></div>
+        <div class="mt"><div class="ml">مدفوع ف٢</div><div class="mv a">${fmt(p2)}</div></div>
+        <div class="mt"><div class="ml">المتبقي</div><div class="mv ${r>0?'r':'g'}">${fmt(r)}</div></div>
+      </div>
+      <div class="dvd"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+        <span style="font-size:11px;color:var(--tx2)">${pct.toFixed(0)}% مسدّد</span>
+        <span style="font-size:15px;font-weight:600;color:var(--${r>0?'rd':'gr'}-t)">${fmt(r)} د.أ متبقي</span>
+      </div>
+      <div class="pw"><div class="pb" style="width:${pct.toFixed(1)}%;background:${bc}"></div></div>
+    </div>
+
+    <div class="card">
+      <div class="ct">تمييز فصل كمدفوع</div>
+      <div class="br">
+        ${!s.sem1Closed?`<button class="btn ba bsm" onclick="markSemPaid('${id}',1)">✓ الفصل الأول مدفوع</button>`:'<span class="paid-badge">✓ الفصل الأول مغلق</span>'}
+        ${s.sem1Closed?`<button class="btn bsm" onclick="clearSemPaid('${id}',1)">إعادة فتح ف١</button>`:''}
+        ${!s.sem2Closed?`<button class="btn ba bsm" onclick="markSemPaid('${id}',2)">✓ الفصل الثاني مدفوع</button>`:'<span class="paid-badge">✓ الفصل الثاني مغلق</span>'}
+        ${s.sem2Closed?`<button class="btn bsm" onclick="clearSemPaid('${id}',2)">إعادة فتح ف٢</button>`:''}
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:11px">
+        <div class="ct" style="margin:0">سجل الدفعات</div>
+        <button class="btn bs bsm" onclick="qPay('student','${id}')">+ دفعة جديدة</button>
+      </div>
+      ${sorted.length===0?'<div class="empty"><div class="ei">💳</div>لا توجد دفعات</div>':
+        sorted.map(p=>`<div class="pi">
+          <div class="pl">
+            <div class="pa">+ ${fmt(p.amount)} د.أ</div>
+            <span class="psem ${p.semester==2?'ps2':'ps1'}">${p.semester==2?'فصل ثاني':'فصل أول'}${p.prefilled?' · مدفوع مسبقاً':''}</span>
+          </div>
+          <div class="pm">
+            <div>${p.date}</div>
+            <div class="prec">${p.receipt||'—'}</div>
+            ${p.note?'<div class="pnote">'+esc(p.note)+'</div>':''}
+          </div>
+          <button class="btn bd bsm" onclick="delPay('student','${id}','${p.id}');renderStDet('${id}')">حذف</button>
+        </div>`).join('')}
+    </div>
+
+    <div class="card">
+      <div class="ct">تعديل بيانات الطالب</div>
+      <div class="fg fg2">
+        <div class="f"><label>الاسم</label><input id="e-name" value="${esc(s.name)}"/></div>
+        <div class="f"><label>المجموعة</label><select id="e-grp">${grpOpts(s.groupId)}</select></div>
+      </div>
+      <div class="f" style="margin-bottom:10px">
+        <label>الفصول المسجّلة</label>
+        <div class="eseg">
+          <button class="esb ${(s.enrollType||'both')==='both'?'on':''}" id="ee-both" onclick="setDetEnr('both','${id}')">فصل أول + ثاني</button>
+          <button class="esb ${s.enrollType==='sem1'?'on':''}" id="ee-sem1" onclick="setDetEnr('sem1','${id}')">فصل أول فقط</button>
+          <button class="esb ${s.enrollType==='sem2'?'on':''}" id="ee-sem2" onclick="setDetEnr('sem2','${id}')">فصل ثاني فقط</button>
+        </div>
+      </div>
+      <div class="fg fg2">
+        <div class="f"><label>المبلغ السنوي</label><input type="number" id="e-ann" value="${s.annual}" oninput="set('e-sem',((parseFloat(this.value)||0)/2).toFixed(2))"/></div>
+        <div class="f"><label>المبلغ الفصلي</label><input type="number" id="e-sem" value="${s.semester}"/></div>
+      </div>
+      <div class="fg fg1" style="margin-bottom:10px">
+        <div class="f"><label>ملاحظات</label><input id="e-notes" value="${esc(s.notes||'')}"/></div>
+      </div>
+      <div class="br">
+        <button class="btn bp" onclick="saveStEdit('${id}')">حفظ التعديلات</button>
+        <button class="btn bd" onclick="delSt('${id}')">حذف الطالب</button>
+      </div>
+      <div id="e-al" style="margin-top:8px"></div>
+    </div>`;
+}
+
+function markSemPaid(id,sem){
+  const s=db.students[id];if(!s)return;
+  const semAmt=s.semester||s.annual/2||0;
+  if(!semAmt)return al('pw-al','المبلغ الفصلي غير محدد');
+  s.payments.push({id:genId(),amount:semAmt,date:new Date().toISOString().split('T')[0],receipt:'',note:'مدفوع مسبقاً',semester:sem,prefilled:true});
+  if(sem===1)s.sem1Closed=true;else s.sem2Closed=true;
+  saveDB();renderStDet(id);
+}
+function clearSemPaid(id,sem){
+  const s=db.students[id];if(!s)return;
+  if(!confirm('إزالة التمييز؟ الدفعات التلقائية ستُحذف.'))return;
+  s.payments=s.payments.filter(p=>!p.prefilled||p.semester!==sem);
+  if(sem===1)s.sem1Closed=false;else s.sem2Closed=false;
+  saveDB();renderStDet(id);
+}
+function setDetEnr(val,sid){
+  ['both','sem1','sem2'].forEach(k=>{const e=document.getElementById('ee-'+k);if(e)e.classList.toggle('on',k===val);});
+  db.students[sid].enrollType=val;saveDB();renderStDet(sid);
+}
+function grpOpts(sel){
+  return'<option value="">— بدون مجموعة —</option>'+obj(db.groups).map(g=>`<option value="${g.id}"${g.id===sel?' selected':''}>${g.name}</option>`).join('');
+}
+function saveStEdit(id){
+  const gid=v('e-grp');
+  const s=db.students[id];
+  s.name=v('e-name').trim()||s.name;
+  s.groupId=gid;s.groupName=gid&&db.groups[gid]?db.groups[gid].name:'';
+  s.annual=parseFloat(v('e-ann'))||0;s.semester=parseFloat(v('e-sem'))||0;
+  s.notes=v('e-notes').trim();
+  saveDB();al('e-al','تم الحفظ ✓','s');renderStDet(id);
+}
+function delSt(id){
+  if(!confirm('حذف الطالب نهائياً؟'))return;
+  delete db.students[id];saveDB();TAB('students');
+}
+function delPay(type,eid,pid){
+  const src=type==='student'?db.students:type==='school'?db.schools:db.centers;
+  if(src[eid])src[eid].payments=src[eid].payments.filter(p=>p.id!==pid);
+  saveDB();
+}
+function qPay(type,id){
+  const src=type==='student'?db.students:type==='school'?db.schools:db.centers;
+  PW.ent=src[id];PW.entType=type;
+  TAB('pay');setTimeout(()=>{set('pw-srch',PW.ent.name);setEnt(type);confEnt();},60);
+}
+
+function renderScDet(id){
+  const s=db.schools[id];if(!s)return;
+  const rp=totalPaid(s),r=s.total-rp,pct=pctBar(rp,s.total),bc=barColor(pct);
+  const sorted=[...(s.payments||[])].sort((a,b)=>b.date<a.date?-1:1);
+  document.getElementById('det-body').innerHTML=`
+    <div class="card">
+      <button class="btn bsm" onclick="TAB('schools')" style="margin-bottom:11px">← رجوع</button>
+      <div style="font-size:15px;font-weight:600;margin-bottom:5px">${s.name}</div>
+      <div style="font-size:11px;color:var(--tx3);margin-bottom:11px">${s.classes||''}${s.notes?' · '+s.notes:''}</div>
+      <div class="mts m3">
+        <div class="mt"><div class="ml">المتفق عليه</div><div class="mv">${fmt(s.total)}</div></div>
+        <div class="mt"><div class="ml">المدفوع</div><div class="mv g">${fmt(rp)}</div></div>
+        <div class="mt"><div class="ml">المتبقي</div><div class="mv ${r>0?'r':'g'}">${fmt(r)}</div></div>
+      </div>
+      <div class="pw"><div class="pb" style="width:${pct.toFixed(1)}%;background:${bc}"></div></div>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div class="ct" style="margin:0">سجل الدفعات</div>
+        <button class="btn bs bsm" onclick="qPay('school','${id}')">+ دفعة</button>
+      </div>
+      ${sorted.length===0?'<div class="empty"><div class="ei">💳</div>لا توجد دفعات</div>':
+        sorted.map(p=>`<div class="pi">
+          <div class="pl"><div class="pa">+ ${fmt(p.amount)} د.أ</div></div>
+          <div class="pm"><div>${p.date}</div><div class="prec">${p.receipt||'—'}</div>${p.note?'<div class="pnote">'+esc(p.note)+'</div>':''}</div>
+          <button class="btn bd bsm" onclick="delPay('school','${id}','${p.id}');renderScDet('${id}')">حذف</button>
+        </div>`).join('')}
+    </div>
+    <div class="card">
+      <div class="ct">تعديل</div>
+      <div class="fg fg2">
+        <div class="f"><label>الاسم</label><input id="sc-e-name" value="${esc(s.name)}"/></div>
+        <div class="f"><label>الشعب</label><input id="sc-e-cls" value="${esc(s.classes||'')}"/></div>
+      </div>
+      <div class="fg fg2" style="margin-bottom:10px">
+        <div class="f"><label>المبلغ الإجمالي</label><input type="number" id="sc-e-tot" value="${s.total}"/></div>
+        <div class="f"><label>ملاحظات</label><input id="sc-e-notes" value="${esc(s.notes||'')}"/></div>
+      </div>
+      <div class="br">
+        <button class="btn bp" onclick="saveScEdit('${id}')">حفظ</button>
+        <button class="btn bd" onclick="delSc('${id}')">حذف المدرسة</button>
+      </div>
+      <div id="sc-e-al" style="margin-top:7px"></div>
+    </div>`;
+}
+function saveScEdit(id){
+  const s=db.schools[id];
+  s.name=v('sc-e-name').trim()||s.name;s.classes=v('sc-e-cls').trim();
+  s.total=parseFloat(v('sc-e-tot'))||0;s.notes=v('sc-e-notes').trim();
+  saveDB();al('sc-e-al','تم الحفظ ✓','s');renderScDet(id);
+}
+function delSc(id){if(!confirm('حذف المدرسة؟'))return;delete db.schools[id];saveDB();TAB('schools');}
+
+function renderCnDet(id){
+  const c=db.centers[id];if(!c)return;
+  const tgt=c.customTotal||c.total||0,rp=totalPaid(c),r=tgt-rp,pct=pctBar(rp,tgt),bc=barColor(pct);
+  const sorted=[...(c.payments||[])].sort((a,b)=>b.date<a.date?-1:1);
+  document.getElementById('det-body').innerHTML=`
+    <div class="card">
+      <button class="btn bsm" onclick="TAB('centers')" style="margin-bottom:11px">← رجوع</button>
+      <div style="font-size:15px;font-weight:600;margin-bottom:5px">${c.name}</div>
+      <div style="font-size:11px;color:var(--tx3);margin-bottom:11px">${c.studentCount} طالب · ${fmt(c.perStudent)} / طالب${c.notes?' · '+c.notes:''}</div>
+      <div class="mts m3">
+        <div class="mt"><div class="ml">المطلوب</div><div class="mv">${fmt(tgt)}</div></div>
+        <div class="mt"><div class="ml">المدفوع</div><div class="mv g">${fmt(rp)}</div></div>
+        <div class="mt"><div class="ml">المتبقي</div><div class="mv ${r>0?'r':'g'}">${fmt(r)}</div></div>
+      </div>
+      <div class="pw"><div class="pb" style="width:${pct.toFixed(1)}%;background:${bc}"></div></div>
+    </div>
+    <div class="card">
+      <div class="ct">تعديل المبلغ (خصم / إضافة)</div>
+      <div class="fg fg2" style="margin-bottom:9px">
+        <div class="f"><label>المبلغ المعدّل (د.أ)</label><input type="number" id="cn-e-tot" value="${tgt}"/></div>
+        <div class="f"><label>عدد الطلاب</label><input type="number" id="cn-e-cnt" value="${c.studentCount}" oninput=""/></div>
+      </div>
+      <button class="btn bp bsm" onclick="saveCnEdit('${id}')">تطبيق</button>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div class="ct" style="margin:0">سجل الدفعات</div>
+        <button class="btn bs bsm" onclick="qPay('center','${id}')">+ دفعة</button>
+      </div>
+      ${sorted.length===0?'<div class="empty"><div class="ei">💳</div>لا توجد دفعات</div>':
+        sorted.map(p=>`<div class="pi">
+          <div class="pl"><div class="pa">+ ${fmt(p.amount)} د.أ</div></div>
+          <div class="pm"><div>${p.date}</div><div class="prec">${p.receipt||'—'}</div>${p.note?'<div class="pnote">'+esc(p.note)+'</div>':''}</div>
+          <button class="btn bd bsm" onclick="delPay('center','${id}','${p.id}');renderCnDet('${id}')">حذف</button>
+        </div>`).join('')}
+    </div>
+    <div class="card">
+      <div class="br">
+        <button class="btn bd" onclick="delCn('${id}')">حذف المركز</button>
+      </div>
+    </div>`;
+}
+function saveCnEdit(id){
+  const c=db.centers[id];
+  c.customTotal=parseFloat(v('cn-e-tot'))||c.total;
+  c.studentCount=parseInt(v('cn-e-cnt'))||c.studentCount;
+  c.perStudent=c.studentCount>0?c.customTotal/c.studentCount:0;
+  saveDB();renderCnDet(id);
+}
+function delCn(id){if(!confirm('حذف المركز؟'))return;delete db.centers[id];saveDB();TAB('centers');}
+
+// ── REPORTS ───────────────────────────────────────────────────────────────────
+function initRptDates(){
+  const pays=[...obj(db.students),...obj(db.schools),...obj(db.centers)]
+    .flatMap(e=>e.payments||[]).map(p=>p.date).filter(Boolean).sort();
+  if(pays.length){set('r-d1',pays[0]);set('r-d2',pays[pays.length-1]);}
+  else{const y=new Date().getFullYear();set('r-d1',y+'-01-01');set('r-d2',y+'-12-31');}
+}
+function rptRange(t){
+  const y=new Date().getFullYear();
+  if(t==='all')initRptDates();
+  else if(t==='sem1'){set('r-d1',y+'-01-01');set('r-d2',y+'-06-30');}
+  else if(t==='sem2'){set('r-d1',y+'-07-01');set('r-d2',y+'-12-31');}
+  else{set('r-d1',y+'-01-01');set('r-d2',y+'-12-31');}
+  buildRpt();
+}
+function buildRpt(){
+  const d1=v('r-d1'),d2=v('r-d2'),q=v('r-srch').toLowerCase().trim();
+  const students=obj(db.students).filter(s=>!q||s.name.toLowerCase().includes(q)||(s.groupName||'').toLowerCase().includes(q));
+  const schools=obj(db.schools).filter(s=>!q||s.name.toLowerCase().includes(q));
+  const centers=obj(db.centers).filter(c=>!q||c.name.toLowerCase().includes(q));
+  const groups=obj(db.groups).filter(g=>!q||g.name.toLowerCase().includes(q));
+
+  const stPaid=students.reduce((a,s)=>a+paidInRange(s,d1,d2),0);
+  const scPaid=schools.reduce((a,s)=>a+paidInRange(s,d1,d2),0);
+  const cnPaid=centers.reduce((a,c)=>a+paidInRange(c,d1,d2),0);
+  const totalColl=stPaid+scPaid+cnPaid;
+  const stTgt=students.reduce((a,s)=>a+target(s),0);
+  const scTgt=schools.reduce((a,s)=>a+s.total,0);
+  const cnTgt=centers.reduce((a,c)=>a+(c.customTotal||c.total||0),0);
+  const totalTgt=stTgt+scTgt+cnTgt;
+  const totalRem=totalTgt-students.reduce((a,s)=>a+relPaid(s),0)-schools.reduce((a,s)=>a+totalPaid(s),0)-centers.reduce((a,c)=>a+totalPaid(c),0);
+
+  let html=`<div class="card">
+    <div class="ct">ملخص إجمالي</div>
+    <div class="mts m4">
+      <div class="mt"><div class="ml">محصّل في الفترة</div><div class="mv g">${fmt(totalColl)}<span style="font-size:10px"> د.أ</span></div></div>
+      <div class="mt"><div class="ml">إجمالي المستهدف</div><div class="mv">${fmt(totalTgt)}<span style="font-size:10px"> د.أ</span></div></div>
+      <div class="mt"><div class="ml">إجمالي المتبقي</div><div class="mv r">${fmt(totalRem)}<span style="font-size:10px"> د.أ</span></div></div>
+      <div class="mt"><div class="ml">من الطلاب / مدارس / مراكز</div><div class="mv" style="font-size:13px">${fmt(stPaid)} / ${fmt(scPaid)} / ${fmt(cnPaid)}</div></div>
+    </div>
+  </div>`;
+
+  // groups breakdown
+  if(groups.length||!q){
+    const grpRows=obj(db.groups).filter(g=>!q||(g.name.toLowerCase().includes(q))).map(g=>{
+      const gs=obj(db.students).filter(s=>s.groupId===g.id);
+      return{name:g.name+(g.generation?' ('+g.generation+')':''),cnt:gs.length,
+        paid:gs.reduce((a,s)=>a+paidInRange(s,d1,d2),0),
+        tgt:gs.reduce((a,s)=>a+target(s),0),
+        rem:gs.reduce((a,s)=>a+rem(s),0)};
+    });
+    if(grpRows.length)html+=`<div class="card"><div class="ct">المجموعات</div>
+      <table class="tbl"><thead><tr><th>المجموعة</th><th>طلاب</th><th>محصّل (الفترة)</th><th>المستهدف</th><th>المتبقي</th></tr></thead>
+      <tbody>${grpRows.map(r=>`<tr><td><strong>${r.name}</strong></td><td>${r.cnt}</td><td style="color:var(--gr-t)">${fmt(r.paid)}</td><td>${fmt(r.tgt)}</td><td style="color:var(--${r.rem>0?'rd':'gr'}-t)">${fmt(r.rem)}</td></tr>`).join('')}</tbody></table></div>`;
+  }
+
+  // students
+  if(students.length){
+    html+=`<div class="card"><div class="ct">الطلاب</div>
+      <table class="tbl"><thead><tr><th>الطالب</th><th>المجموعة</th><th>الفصول</th><th>محصّل (الفترة)</th><th>المتبقي</th></tr></thead>
+      <tbody>${students.sort((a,b)=>a.name.localeCompare(b.name,'ar')).map(s=>{
+        const el={both:'فصلين',sem1:'ف١',sem2:'ف٢'}[s.enrollType||'both'];
+        const r=rem(s);
+        return`<tr style="cursor:pointer" onclick="openDet('student','${s.id}')"><td><strong>${s.name}</strong></td><td>${s.groupName||'—'}</td><td>${el}</td><td style="color:var(--gr-t)">${fmt(paidInRange(s,d1,d2))}</td><td style="color:var(--${r>0?'rd':'gr'}-t)">${fmt(r)}</td></tr>`;
+      }).join('')}</tbody></table></div>`;
+  }
+
+  // schools
+  if(schools.length){
+    html+=`<div class="card"><div class="ct">المدارس</div>
+      <table class="tbl"><thead><tr><th>المدرسة</th><th>الشعب</th><th>محصّل (الفترة)</th><th>المتفق عليه</th><th>المتبقي</th></tr></thead>
+      <tbody>${schools.map(s=>{const r=s.total-totalPaid(s);return`<tr style="cursor:pointer" onclick="openDet('school','${s.id}')"><td><strong>${s.name}</strong></td><td>${s.classes||'—'}</td><td style="color:var(--gr-t)">${fmt(paidInRange(s,d1,d2))}</td><td>${fmt(s.total)}</td><td style="color:var(--${r>0?'rd':'gr'}-t)">${fmt(r)}</td></tr>`;}).join('')}</tbody></table></div>`;
+  }
+
+  // centers
+  if(centers.length){
+    html+=`<div class="card"><div class="ct">المراكز</div>
+      <table class="tbl"><thead><tr><th>المركز</th><th>طلاب</th><th>محصّل (الفترة)</th><th>المطلوب</th><th>المتبقي</th></tr></thead>
+      <tbody>${centers.map(c=>{const tgt=c.customTotal||c.total||0,r=tgt-totalPaid(c);return`<tr style="cursor:pointer" onclick="openDet('center','${c.id}')"><td><strong>${c.name}</strong></td><td>${c.studentCount}</td><td style="color:var(--gr-t)">${fmt(paidInRange(c,d1,d2))}</td><td>${fmt(tgt)}</td><td style="color:var(--${r>0?'rd':'gr'}-t)">${fmt(r)}</td></tr>`;}).join('')}</tbody></table></div>`;
+  }
+
+  document.getElementById('rpt-out').innerHTML=html;
+}
+
+// ── EXPORT XLSX ───────────────────────────────────────────────────────────────
+function exportXLSX(){
+  if(typeof XLSX==='undefined')return alert('مكتبة الإكسل لم تُحمّل بعد، تأكد من الاتصال بالإنترنت');
+  const d1=v('r-d1'),d2=v('r-d2'),q=v('r-srch').toLowerCase().trim();
+  const wb=XLSX.utils.book_new();
+
+  // Summary
+  const sts=obj(db.students),scs=obj(db.schools),cns=obj(db.centers);
+  const totColl=[...sts,...scs,...cns].reduce((a,e)=>a+paidInRange(e,d1,d2),0);
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([
+    ['ملخص عام',''],['الفترة من',d1],['إلى',d2],[''],
+    ['إجمالي محصّل في الفترة (د.أ)',totColl],
+    ['إجمالي الطلاب',sts.length],['إجمالي المدارس',scs.length],['إجمالي المراكز',cns.length]
+  ]),'ملخص');
+
+  // Students
+  const stH=['اسم الطالب','المجموعة','الجيل','الفصول','المستهدف','إجمالي المدفوع','محصّل (الفترة)','المتبقي','دفعات','ملاحظات'];
+  const stR=sts.filter(s=>!q||s.name.toLowerCase().includes(q)).map(s=>{
+    const g=s.groupId&&db.groups[s.groupId];
+    return[s.name,s.groupName||'—',g?g.generation||'':'',{both:'فصلين',sem1:'ف١',sem2:'ف٢'}[s.enrollType||'both'],target(s),relPaid(s),paidInRange(s,d1,d2),rem(s),(s.payments||[]).length,s.notes||''];
+  });
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([stH,...stR]),'الطلاب');
+
+  // Schools
+  const scH=['المدرسة','الشعب','المتفق عليه','المدفوع','محصّل (الفترة)','المتبقي','دفعات','ملاحظات'];
+  const scR=scs.filter(s=>!q||s.name.toLowerCase().includes(q)).map(s=>[s.name,s.classes||'',s.total,totalPaid(s),paidInRange(s,d1,d2),s.total-totalPaid(s),(s.payments||[]).length,s.notes||'']);
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([scH,...scR]),'المدارس');
+
+  // Centers
+  const cnH=['المركز','طلاب','المطلوب','المدفوع','محصّل (الفترة)','المتبقي','دفعات','ملاحظات'];
+  const cnR=cns.filter(c=>!q||c.name.toLowerCase().includes(q)).map(c=>{const t=c.customTotal||c.total||0;return[c.name,c.studentCount,t,totalPaid(c),paidInRange(c,d1,d2),t-totalPaid(c),(c.payments||[]).length,c.notes||''];});
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([cnH,...cnR]),'المراكز');
+
+  // All payments
+  const pH=['الاسم','النوع','المجموعة','الفصل','التاريخ','المبلغ (د.أ)','رقم الوصل','ملاحظة'];
+  const pR=[];
+  sts.filter(s=>!q||s.name.toLowerCase().includes(q)).forEach(s=>(s.payments||[]).forEach(p=>{
+    if(d1&&p.date<d1||d2&&p.date>d2)return;
+    pR.push([s.name,'طالب',s.groupName||'',p.semester===2?'فصل ثاني':'فصل أول',p.date,p.amount,p.receipt||'',p.note||'']);
+  }));
+  scs.filter(s=>!q||s.name.toLowerCase().includes(q)).forEach(s=>(s.payments||[]).forEach(p=>{
+    if(d1&&p.date<d1||d2&&p.date>d2)return;
+    pR.push([s.name,'مدرسة','','',p.date,p.amount,p.receipt||'',p.note||'']);
+  }));
+  cns.filter(c=>!q||c.name.toLowerCase().includes(q)).forEach(c=>(c.payments||[]).forEach(p=>{
+    if(d1&&p.date<d1||d2&&p.date>d2)return;
+    pR.push([c.name,'مركز','','',p.date,p.amount,p.receipt||'',p.note||'']);
+  }));
+  pR.sort((a,b)=>a[4]<b[4]?-1:1);
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([pH,...pR]),'سجل الدفعات');
+
+  const fn='دفعات_'+(d1&&d2?d1+'_'+d2:new Date().toISOString().split('T')[0])+'.xlsx';
+  XLSX.writeFile(wb,fn);
+}
+
+loadDB();
+</script>
+</body>
+</html>
