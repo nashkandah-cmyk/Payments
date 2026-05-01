@@ -521,13 +521,29 @@ function saveDB(){
 }
 
 async function pushToSheets(){
+  const payload=JSON.stringify(db);
+  const encoded=encodeURIComponent(payload);
   try{
-    const encoded=encodeURIComponent(JSON.stringify(db));
-    const res=await fetch(GAS_URL+'?data='+encoded);
-    const txt=await res.text();
-    setSyncStatus(txt==='ok'||txt.includes('ok')?'saved':'error');
+    if(encoded.length<6000){
+      // Small data: use GET (no CORS)
+      const res=await fetch(GAS_URL+'?data='+encoded);
+      const txt=await res.text();
+      setSyncStatus(txt==='ok'||txt.includes('ok')?'saved':'error');
+    } else {
+      // Large data: use POST without Content-Type (avoids CORS preflight)
+      const res=await fetch(GAS_URL,{
+        method:'POST',
+        body:payload
+      });
+      const txt=await res.text();
+      setSyncStatus(txt.includes('ok')||res.ok?'saved':'error');
+    }
   }catch(e){
-    setSyncStatus('error');
+    // Last resort: no-cors POST
+    try{
+      await fetch(GAS_URL,{method:'POST',mode:'no-cors',body:payload});
+      setSyncStatus('saved');
+    }catch(e2){setSyncStatus('error');}
   }
 }
 function updHdr(){
