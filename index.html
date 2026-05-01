@@ -188,10 +188,11 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
 
 <header class="hdr">
   <div class="hdr-ico">📋</div>
-  <div>
+  <div style="flex:1">
     <div class="hdr-title">إدارة الدفعات المالية</div>
     <div class="hdr-sub" id="hdr-sub">جاري التحميل...</div>
   </div>
+  <button onclick="pullFromSheets()" class="btn bsm" title="تحديث من السحابة" style="font-size:16px;padding:5px 10px">🔄</button>
 </header>
 
 <nav>
@@ -489,14 +490,17 @@ async function loadDB(){
   try{const r=localStorage.getItem(SK);if(r)db=JSON.parse(r);}catch(e){}
   ['students','groups','schools','centers'].forEach(k=>{if(!db[k])db[k]={};});
   updHdr();popGrpSels();popGrpFilter();
+  await pullFromSheets();
+}
+
+async function pullFromSheets(){
   setSyncStatus('syncing');
   try{
-    // GET works fine without CORS issues
-    const res=await fetch(GAS_URL+'?t='+Date.now(),{redirect:'follow'});
+    const res=await fetch(GAS_URL+'?t='+Date.now());
     const text=await res.text();
     if(text&&text.trim().startsWith('{')){
       const remote=JSON.parse(text);
-      if(remote&&typeof remote==='object'){
+      if(remote&&typeof remote==='object'&&Object.keys(remote).length>0){
         ['students','groups','schools','centers'].forEach(k=>{if(!remote[k])remote[k]={};});
         db=remote;
         localStorage.setItem(SK,JSON.stringify(db));
@@ -505,7 +509,7 @@ async function loadDB(){
       }
     }
     setSyncStatus('saved');
-  }catch(e){setSyncStatus('offline');console.warn('Sync error:',e);}
+  }catch(e){setSyncStatus('offline');console.warn('Pull error:',e);}
 }
 
 function saveDB(){
@@ -517,22 +521,39 @@ function saveDB(){
 }
 
 async function pushToSheets(){
+  const payload=JSON.stringify(db);
+  let ok=false;
+
+  // Try POST first (works from HTTPS/GitHub Pages)
   try{
-    // Use no-cors to bypass CORS restriction — data still saves to sheet
-    await fetch(GAS_URL,{
+    const res=await fetch(GAS_URL,{
       method:'POST',
-      mode:'no-cors',
-      body:JSON.stringify(db)
+      body:payload
     });
-    setSyncStatus('saved');
-  }catch(e){
-    // Try fallback with image trick
+    const txt=await res.text();
+    if(txt.includes('ok')||res.ok)ok=true;
+  }catch(e){}
+
+  // Fallback: send via GET parameter
+  if(!ok){
     try{
-      const encoded=encodeURIComponent(JSON.stringify(db));
-      await fetch(GAS_URL+'?data='+encoded,{redirect:'follow'});
-      setSyncStatus('saved');
-    }catch(e2){setSyncStatus('error');console.warn('Push error:',e2);}
+      const enc=encodeURIComponent(payload);
+      if(enc.length<8000){
+        const res=await fetch(GAS_URL+'?action=save&data='+enc);
+        if(res.ok)ok=true;
+      }
+    }catch(e){}
   }
+
+  // Last resort: no-cors POST
+  if(!ok){
+    try{
+      await fetch(GAS_URL,{method:'POST',mode:'no-cors',body:payload});
+      ok=true;// assume success
+    }catch(e){}
+  }
+
+  setSyncStatus(ok?'saved':'error');
 }
 function updHdr(){
   const sc=obj(db.students).length,gc=obj(db.groups).length,
