@@ -521,39 +521,14 @@ function saveDB(){
 }
 
 async function pushToSheets(){
-  const payload=JSON.stringify(db);
-  let ok=false;
-
-  // Try POST first (works from HTTPS/GitHub Pages)
   try{
-    const res=await fetch(GAS_URL,{
-      method:'POST',
-      body:payload
-    });
+    const encoded=encodeURIComponent(JSON.stringify(db));
+    const res=await fetch(GAS_URL+'?data='+encoded);
     const txt=await res.text();
-    if(txt.includes('ok')||res.ok)ok=true;
-  }catch(e){}
-
-  // Fallback: send via GET parameter
-  if(!ok){
-    try{
-      const enc=encodeURIComponent(payload);
-      if(enc.length<8000){
-        const res=await fetch(GAS_URL+'?action=save&data='+enc);
-        if(res.ok)ok=true;
-      }
-    }catch(e){}
+    setSyncStatus(txt==='ok'||txt.includes('ok')?'saved':'error');
+  }catch(e){
+    setSyncStatus('error');
   }
-
-  // Last resort: no-cors POST
-  if(!ok){
-    try{
-      await fetch(GAS_URL,{method:'POST',mode:'no-cors',body:payload});
-      ok=true;// assume success
-    }catch(e){}
-  }
-
-  setSyncStatus(ok?'saved':'error');
 }
 function updHdr(){
   const sc=obj(db.students).length,gc=obj(db.groups).length,
