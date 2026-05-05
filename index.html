@@ -425,12 +425,18 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
         <input id="r-srch" placeholder="اكتب الاسم للفلترة..." oninput="buildRpt()"/>
       </div>
     </div>
-    <div class="br">
+    <div class="br" style="margin-bottom:6px">
       <button class="btn bsm" onclick="rptRange('all')">كل الفترات</button>
       <button class="btn bsm" onclick="rptRange('sem1')">فصل أول</button>
       <button class="btn bsm" onclick="rptRange('sem2')">فصل ثاني</button>
       <button class="btn bsm" onclick="rptRange('year')">هذه السنة</button>
-      <button class="btn bt bsm" onclick="exportXLSX()">⬇ تصدير Excel / Numbers</button>
+    </div>
+    <div class="br">
+      <button class="btn bsm bp" onclick="setRptView('summary')">📋 ملخص</button>
+      <button class="btn bsm" onclick="setRptView('monthly')">📅 شهري</button>
+      <button class="btn bsm" onclick="setRptView('expected')">📌 متوقع</button>
+      <button class="btn bsm" onclick="setRptView('lost')">⚠ الفاقد</button>
+      <button class="btn bt bsm" onclick="exportXLSX()">⬇ تصدير Excel</button>
     </div>
   </div>
   <div id="rpt-out"></div>
@@ -1105,10 +1111,18 @@ function renderStDet(id){
       </div>
       <div class="br">
         <button class="btn bp" onclick="saveStEdit('${id}')">حفظ التعديلات</button>
+        ${s.withdrawn?
+          '<button class="btn ba" onclick="toggleWithdrawn(&quot;'+id+'&quot;)">↩ إعادة تفعيل</button>':
+          '<button class="btn ba" onclick="toggleWithdrawn(&quot;'+id+'&quot;)">⚠ تسجيل كمنسحب</button>'}
         <button class="btn bd" onclick="delSt('${id}')">حذف الطالب</button>
       </div>
       <div id="e-al" style="margin-top:8px"></div>
     </div>`;
+}
+function toggleWithdrawn(id){
+  const s=db.students[id];if(!s)return;
+  s.withdrawn=!s.withdrawn;
+  saveDB();renderStDet(id);
 }
 
 function markSemPaid(id,sem){
@@ -1327,12 +1341,25 @@ function rptRange(t){
   else{set('r-d1',y+'-01-01');set('r-d2',y+'-12-31');}
   buildRpt();
 }
+let rptView='summary';
+function setRptView(v){
+  rptView=v;
+  document.querySelectorAll('#tab-reports .br .btn').forEach(b=>{
+    b.classList.remove('bp');
+    if(b.getAttribute('onclick')&&b.getAttribute('onclick').includes("'"+v+"'"))b.classList.add('bp');
+  });
+  buildRpt();
+}
+
 function buildRpt(){
   const d1=v('r-d1'),d2=v('r-d2'),q=v('r-srch').toLowerCase().trim();
+  if(rptView==='monthly'){buildMonthlyRpt(d1,d2,q);return;}
+  if(rptView==='expected'){buildExpectedRpt(q);return;}
+  if(rptView==='lost'){buildLostRpt(q);return;}
+
   const students=obj(db.students).filter(s=>!q||s.name.toLowerCase().includes(q)||(s.groupName||'').toLowerCase().includes(q));
   const schools=obj(db.schools).filter(s=>!q||s.name.toLowerCase().includes(q));
   const centers=obj(db.centers).filter(c=>!q||c.name.toLowerCase().includes(q));
-  const groups=obj(db.groups).filter(g=>!q||g.name.toLowerCase().includes(q));
 
   const stPaid=students.reduce((a,s)=>a+paidInRange(s,d1,d2),0);
   const scPaid=schools.reduce((a,s)=>a+paidInRange(s,d1,d2),0);
@@ -1350,47 +1377,178 @@ function buildRpt(){
       <div class="mt"><div class="ml">محصّل في الفترة</div><div class="mv g">${fmt(totalColl)}<span style="font-size:10px"> د.أ</span></div></div>
       <div class="mt"><div class="ml">إجمالي المستهدف</div><div class="mv">${fmt(totalTgt)}<span style="font-size:10px"> د.أ</span></div></div>
       <div class="mt"><div class="ml">إجمالي المتبقي</div><div class="mv r">${fmt(totalRem)}<span style="font-size:10px"> د.أ</span></div></div>
-      <div class="mt"><div class="ml">من الطلاب / مدارس / مراكز</div><div class="mv" style="font-size:13px">${fmt(stPaid)} / ${fmt(scPaid)} / ${fmt(cnPaid)}</div></div>
+      <div class="mt"><div class="ml">طلاب / مدارس / مراكز</div><div class="mv" style="font-size:13px">${fmt(stPaid)} / ${fmt(scPaid)} / ${fmt(cnPaid)}</div></div>
     </div>
   </div>`;
 
-  // groups breakdown
-  if(groups.length||!q){
-    const grpRows=obj(db.groups).filter(g=>!q||(g.name.toLowerCase().includes(q))).map(g=>{
-      const gs=obj(db.students).filter(s=>s.groupId===g.id);
-      return{name:g.name+(g.generation?' ('+g.generation+')':''),cnt:gs.length,
-        paid:gs.reduce((a,s)=>a+paidInRange(s,d1,d2),0),
-        tgt:gs.reduce((a,s)=>a+target(s),0),
-        rem:gs.reduce((a,s)=>a+rem(s),0)};
-    });
-    if(grpRows.length)html+=`<div class="card"><div class="ct">المجموعات</div>
-      <table class="tbl"><thead><tr><th>المجموعة</th><th>طلاب</th><th>محصّل (الفترة)</th><th>المستهدف</th><th>المتبقي</th></tr></thead>
-      <tbody>${grpRows.map(r=>`<tr><td><strong>${r.name}</strong></td><td>${r.cnt}</td><td style="color:var(--gr-t)">${fmt(r.paid)}</td><td>${fmt(r.tgt)}</td><td style="color:var(--${r.rem>0?'rd':'gr'}-t)">${fmt(r.rem)}</td></tr>`).join('')}</tbody></table></div>`;
+  const grpRows=obj(db.groups).filter(g=>!q||g.name.toLowerCase().includes(q)).map(g=>{
+    const gs=obj(db.students).filter(s=>s.groupId===g.id);
+    return{name:g.name+(g.generation?' ('+g.generation+')':''),cnt:gs.length,
+      paid:gs.reduce((a,s)=>a+paidInRange(s,d1,d2),0),
+      tgt:gs.reduce((a,s)=>a+target(s),0),
+      rem:gs.reduce((a,s)=>a+rem(s),0)};
+  });
+  if(grpRows.length)html+=`<div class="card"><div class="ct">المجموعات</div>
+    <table class="tbl"><thead><tr><th>المجموعة</th><th>طلاب</th><th>محصّل (الفترة)</th><th>المستهدف</th><th>المتبقي</th></tr></thead>
+    <tbody>${grpRows.map(r=>`<tr><td><strong>${r.name}</strong></td><td>${r.cnt}</td><td style="color:var(--gr-t)">${fmt(r.paid)}</td><td>${fmt(r.tgt)}</td><td style="color:var(--${r.rem>0?'rd':'gr'}-t)">${fmt(r.rem)}</td></tr>`).join('')}</tbody></table></div>`;
+
+  if(students.length)html+=`<div class="card"><div class="ct">الطلاب</div>
+    <table class="tbl"><thead><tr><th>الطالب</th><th>المجموعة</th><th>الفصول</th><th>محصّل (الفترة)</th><th>المتبقي</th></tr></thead>
+    <tbody>${students.sort((a,b)=>a.name.localeCompare(b.name,'ar')).map(s=>{
+      const el={both:'فصلين',sem1:'ف١',sem2:'ف٢'}[s.enrollType||'both'];const r=rem(s);
+      return`<tr style="cursor:pointer" onclick="openDet('student','${s.id}')"><td><strong>${s.name}</strong></td><td>${s.groupName||'—'}</td><td>${el}</td><td style="color:var(--gr-t)">${fmt(paidInRange(s,d1,d2))}</td><td style="color:var(--${r>0?'rd':'gr'}-t)">${fmt(r)}</td></tr>`;
+    }).join('')}</tbody></table></div>`;
+
+  if(schools.length)html+=`<div class="card"><div class="ct">المدارس</div>
+    <table class="tbl"><thead><tr><th>المدرسة</th><th>الشعب</th><th>محصّل (الفترة)</th><th>المتفق عليه</th><th>المتبقي</th></tr></thead>
+    <tbody>${schools.map(s=>{const r=s.total-totalPaid(s);return`<tr style="cursor:pointer" onclick="openDet('school','${s.id}')"><td><strong>${s.name}</strong></td><td>${s.classes||'—'}</td><td style="color:var(--gr-t)">${fmt(paidInRange(s,d1,d2))}</td><td>${fmt(s.total)}</td><td style="color:var(--${r>0?'rd':'gr'}-t)">${fmt(r)}</td></tr>`;}).join('')}</tbody></table></div>`;
+
+  if(centers.length)html+=`<div class="card"><div class="ct">المراكز</div>
+    <table class="tbl"><thead><tr><th>المركز</th><th>طلاب</th><th>محصّل (الفترة)</th><th>المطلوب</th><th>المتبقي</th></tr></thead>
+    <tbody>${centers.map(c=>{const tgt=c.customTotal||c.total||0,r=tgt-totalPaid(c);return`<tr style="cursor:pointer" onclick="openDet('center','${c.id}')"><td><strong>${c.name}</strong></td><td>${c.studentCount}</td><td style="color:var(--gr-t)">${fmt(paidInRange(c,d1,d2))}</td><td>${fmt(tgt)}</td><td style="color:var(--${r>0?'rd':'gr'}-t)">${fmt(r)}</td></tr>`;}).join('')}</tbody></table></div>`;
+
+  document.getElementById('rpt-out').innerHTML=html;
+}
+
+// ── MONTHLY REPORT ────────────────────────────────────────────────────────────
+function buildMonthlyRpt(d1,d2,q){
+  const allPays=[];
+  const allEnts=[
+    ...obj(db.students).filter(s=>!q||s.name.toLowerCase().includes(q)||(s.groupName||'').toLowerCase().includes(q)).map(e=>({...e,_type:'طالب'})),
+    ...obj(db.schools).filter(s=>!q||s.name.toLowerCase().includes(q)).map(e=>({...e,_type:'مدرسة'})),
+    ...obj(db.centers).filter(c=>!q||c.name.toLowerCase().includes(q)).map(e=>({...e,_type:'مركز'}))
+  ];
+  allEnts.forEach(e=>(e.payments||[]).forEach(p=>{
+    if(d1&&p.date<d1)return;
+    if(d2&&p.date>d2)return;
+    allPays.push({...p,_name:e.name,_type:e._type,_group:e.groupName||''});
+  }));
+
+  // Group by month
+  const months={};
+  allPays.forEach(p=>{
+    const m=p.date?p.date.slice(0,7):'unknown';
+    if(!months[m])months[m]={total:0,pays:[]};
+    months[m].total+=p.amount;
+    months[m].pays.push(p);
+  });
+
+  const sortedMonths=Object.keys(months).sort().reverse();
+  if(!sortedMonths.length){
+    document.getElementById('rpt-out').innerHTML='<div class="card"><div class="empty"><div class="ei">📅</div>لا توجد دفعات في هذه الفترة</div></div>';
+    return;
   }
 
-  // students
-  if(students.length){
-    html+=`<div class="card"><div class="ct">الطلاب</div>
-      <table class="tbl"><thead><tr><th>الطالب</th><th>المجموعة</th><th>الفصول</th><th>محصّل (الفترة)</th><th>المتبقي</th></tr></thead>
-      <tbody>${students.sort((a,b)=>a.name.localeCompare(b.name,'ar')).map(s=>{
-        const el={both:'فصلين',sem1:'ف١',sem2:'ف٢'}[s.enrollType||'both'];
+  let html='';
+  sortedMonths.forEach(m=>{
+    const mo=months[m];
+    const [yr,mn]=m.split('-');
+    const arMonths=['','يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+    const mLabel=arMonths[parseInt(mn)]||mn;
+    html+=`<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-size:14px;font-weight:600">${mLabel} ${yr}</div>
+        <div style="font-size:15px;font-weight:600;color:var(--gr-t)">${fmt(mo.total)} د.أ</div>
+      </div>
+      <table class="tbl"><thead><tr><th>الاسم</th><th>النوع</th><th>التاريخ</th><th>المبلغ</th><th>الوصل</th></tr></thead>
+      <tbody>${mo.pays.sort((a,b)=>a.date<b.date?-1:1).map(p=>`<tr>
+        <td><strong>${p._name}</strong>${p._group?'<br><span style="font-size:10px;color:var(--tx3)">'+p._group+'</span>':''}</td>
+        <td><span class="tag ${p._type==='طالب'?'tb':p._type==='مدرسة'?'tg':'tt'}">${p._type}</span></td>
+        <td>${p.date}</td>
+        <td style="color:var(--gr-t);font-weight:500">${fmt(p.amount)} د.أ</td>
+        <td style="font-family:monospace;font-size:11px">${p.receipt||'—'}</td>
+      </tr>`).join('')}</tbody></table>
+    </div>`;
+  });
+  document.getElementById('rpt-out').innerHTML=html;
+}
+
+// ── EXPECTED PAYMENTS REPORT ──────────────────────────────────────────────────
+function buildExpectedRpt(q){
+  const students=obj(db.students).filter(s=>!q||s.name.toLowerCase().includes(q)||(s.groupName||'').toLowerCase().includes(q));
+  const schools=obj(db.schools).filter(s=>!q||s.name.toLowerCase().includes(q));
+  const centers=obj(db.centers).filter(c=>!q||c.name.toLowerCase().includes(q));
+
+  const totalExpected=students.reduce((a,s)=>a+target(s),0)
+    +schools.reduce((a,s)=>a+s.total,0)
+    +centers.reduce((a,c)=>a+(c.customTotal||c.total||0),0);
+  const totalCollected=students.reduce((a,s)=>a+relPaid(s),0)
+    +schools.reduce((a,s)=>a+totalPaid(s),0)
+    +centers.reduce((a,c)=>a+totalPaid(c),0);
+  const totalPending=totalExpected-totalCollected;
+
+  let html=`<div class="card">
+    <div class="ct">الدفعات المتوقعة (إجمالي)</div>
+    <div class="mts m3">
+      <div class="mt"><div class="ml">المتوقع الكلي</div><div class="mv b">${fmt(totalExpected)} <span style="font-size:10px">د.أ</span></div></div>
+      <div class="mt"><div class="ml">تم تحصيله</div><div class="mv g">${fmt(totalCollected)} <span style="font-size:10px">د.أ</span></div></div>
+      <div class="mt"><div class="ml">المتبقي المتوقع</div><div class="mv r">${fmt(totalPending)} <span style="font-size:10px">د.أ</span></div></div>
+    </div>
+    <div style="font-size:11px;color:var(--tx3);margin-top:8px">* يشمل فقط الطلاب الذين لديهم مبالغ محددة. الطلاب بدون جدول منتظم غير مشمولين في الحساب التلقائي.</div>
+  </div>`;
+
+  // Students pending
+  const pendingSts=students.filter(s=>rem(s)>0).sort((a,b)=>rem(b)-rem(a));
+  if(pendingSts.length){
+    html+=`<div class="card"><div class="ct">الطلاب - متبقي عليهم</div>
+      <table class="tbl"><thead><tr><th>الطالب</th><th>المجموعة</th><th>الفصول</th><th>المستهدف</th><th>المدفوع</th><th>المتبقي</th></tr></thead>
+      <tbody>${pendingSts.map(s=>{
         const r=rem(s);
-        return`<tr style="cursor:pointer" onclick="openDet('student','${s.id}')"><td><strong>${s.name}</strong></td><td>${s.groupName||'—'}</td><td>${el}</td><td style="color:var(--gr-t)">${fmt(paidInRange(s,d1,d2))}</td><td style="color:var(--${r>0?'rd':'gr'}-t)">${fmt(r)}</td></tr>`;
-      }).join('')}</tbody></table></div>`;
+        return`<tr style="cursor:pointer" onclick="openDet('student','${s.id}')">
+          <td><strong>${s.name}</strong></td>
+          <td>${s.groupName||'—'}</td>
+          <td>${{both:'فصلين',sem1:'ف١',sem2:'ف٢'}[s.enrollType||'both']}</td>
+          <td>${fmt(target(s))}</td>
+          <td style="color:var(--gr-t)">${fmt(relPaid(s))}</td>
+          <td style="color:var(--rd-t);font-weight:500">${fmt(r)}</td>
+        </tr>`;
+      }).join('')}</tbody>
+      <tfoot><tr><td colspan="5" style="padding:7px 9px;font-weight:500">الإجمالي</td><td style="padding:7px 9px;color:var(--rd-t);font-weight:600">${fmt(pendingSts.reduce((a,s)=>a+rem(s),0))}</td></tr></tfoot>
+    </table></div>`;
   }
 
-  // schools
-  if(schools.length){
-    html+=`<div class="card"><div class="ct">المدارس</div>
-      <table class="tbl"><thead><tr><th>المدرسة</th><th>الشعب</th><th>محصّل (الفترة)</th><th>المتفق عليه</th><th>المتبقي</th></tr></thead>
-      <tbody>${schools.map(s=>{const r=s.total-totalPaid(s);return`<tr style="cursor:pointer" onclick="openDet('school','${s.id}')"><td><strong>${s.name}</strong></td><td>${s.classes||'—'}</td><td style="color:var(--gr-t)">${fmt(paidInRange(s,d1,d2))}</td><td>${fmt(s.total)}</td><td style="color:var(--${r>0?'rd':'gr'}-t)">${fmt(r)}</td></tr>`;}).join('')}</tbody></table></div>`;
+  // Schools pending
+  const pendingScs=schools.filter(s=>s.total-totalPaid(s)>0);
+  if(pendingScs.length){
+    html+=`<div class="card"><div class="ct">المدارس - متبقي عليها</div>
+      <table class="tbl"><thead><tr><th>المدرسة</th><th>المتفق عليه</th><th>المدفوع</th><th>المتبقي</th></tr></thead>
+      <tbody>${pendingScs.map(s=>{const r=s.total-totalPaid(s);return`<tr onclick="openDet('school','${s.id}')" style="cursor:pointer"><td><strong>${s.name}</strong></td><td>${fmt(s.total)}</td><td style="color:var(--gr-t)">${fmt(totalPaid(s))}</td><td style="color:var(--rd-t);font-weight:500">${fmt(r)}</td></tr>`;}).join('')}</tbody>
+    </table></div>`;
   }
 
-  // centers
-  if(centers.length){
-    html+=`<div class="card"><div class="ct">المراكز</div>
-      <table class="tbl"><thead><tr><th>المركز</th><th>طلاب</th><th>محصّل (الفترة)</th><th>المطلوب</th><th>المتبقي</th></tr></thead>
-      <tbody>${centers.map(c=>{const tgt=c.customTotal||c.total||0,r=tgt-totalPaid(c);return`<tr style="cursor:pointer" onclick="openDet('center','${c.id}')"><td><strong>${c.name}</strong></td><td>${c.studentCount}</td><td style="color:var(--gr-t)">${fmt(paidInRange(c,d1,d2))}</td><td>${fmt(tgt)}</td><td style="color:var(--${r>0?'rd':'gr'}-t)">${fmt(r)}</td></tr>`;}).join('')}</tbody></table></div>`;
+  document.getElementById('rpt-out').innerHTML=html;
+}
+
+// ── LOST / WITHDRAWN STUDENTS REPORT ─────────────────────────────────────────
+function buildLostRpt(q){
+  const lostSts=obj(db.students).filter(s=>s.withdrawn&&(!q||s.name.toLowerCase().includes(q)));
+  const allSts=obj(db.students).filter(s=>!q||s.name.toLowerCase().includes(q));
+  const activeSts=allSts.filter(s=>!s.withdrawn);
+
+  const totalTarget=allSts.reduce((a,s)=>a+target(s),0);
+  const activeTarget=activeSts.reduce((a,s)=>a+target(s),0);
+  const lostTarget=lostSts.reduce((a,s)=>a+target(s),0);
+  const activePaid=activeSts.reduce((a,s)=>a+relPaid(s),0);
+  const lostPaid=lostSts.reduce((a,s)=>a+relPaid(s),0);
+  const lostUnpaid=lostSts.reduce((a,s)=>a+rem(s),0);
+
+  let html=`<div class="card">
+    <div class="ct">تقرير الفاقد</div>
+    <div class="mts m4">
+      <div class="mt"><div class="ml">الطلاب المنسحبون</div><div class="mv r">${lostSts.length}</div></div>
+      <div class="mt"><div class="ml">فاقد غير محصّل</div><div class="mv r">${fmt(lostUnpaid)} <span style="font-size:10px">د.أ</span></div></div>
+      <div class="mt"><div class="ml">التحصيل الفعلي (بدون الفاقد)</div><div class="mv g">${fmt(activePaid)} <span style="font-size:10px">د.أ</span></div></div>
+      <div class="mt"><div class="ml">التحصيل المفترض (مع الفاقد)</div><div class="mv b">${fmt(activePaid+lostPaid)} <span style="font-size:10px">د.أ</span></div></div>
+    </div>
+  </div>`;
+
+  if(!lostSts.length){
+    html+=`<div class="card"><div class="empty"><div class="ei">✅</div>لا يوجد طلاب منسحبون مسجّلون<br><br><span style="font-size:11px;color:var(--tx3)">لتسجيل طالب كمنسحب، افتح ملفه واضغط "تسجيل كمنسحب"</span></div></div>`;
+  } else {
+    html+=`<div class="card"><div class="ct">الطلاب المنسحبون</div>
+      <table class="tbl"><thead><tr><th>الطالب</th><th>المجموعة</th><th>المستهدف</th><th>المدفوع</th><th>الفاقد</th></tr></thead>
+      <tbody>${lostSts.map(s=>{const r=rem(s);return`<tr onclick="openDet('student','${s.id}')" style="cursor:pointer"><td><strong>${s.name}</strong> <span class="tag rd" style="background:var(--rd-bg);color:var(--rd-t);border-color:var(--rd-b)">منسحب</span></td><td>${s.groupName||'—'}</td><td>${fmt(target(s))}</td><td style="color:var(--gr-t)">${fmt(relPaid(s))}</td><td style="color:var(--rd-t);font-weight:500">${fmt(r)}</td></tr>`;}).join('')}</tbody>
+    </table></div>`;
   }
 
   document.getElementById('rpt-out').innerHTML=html;
