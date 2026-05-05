@@ -483,24 +483,41 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
 const SK='pmdb_v4';
 
 // ── ARABIC NUMERALS CONVERTER ─────────────────────────────────────────────────
+const AR_DIGITS='٠١٢٣٤٥٦٧٨٩';
 function arToEn(str){
-  return String(str).replace(/[٠١٢٣٤٥٦٧٨٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+  return String(str).replace(/[٠١٢٣٤٥٦٧٨٩]/g,d=>AR_DIGITS.indexOf(d));
 }
-function convertArNums(el){
-  const v=el.value, converted=arToEn(v);
-  if(v!==converted){el.value=converted;el.dispatchEvent(new Event('input'));}
-}
-// Apply to all number/date/text inputs globally
+// Intercept keydown to convert Arabic digits before browser validates number inputs
+document.addEventListener('keydown',function(e){
+  if(!AR_DIGITS.includes(e.key))return;
+  const el=e.target;
+  if(!el||el.tagName!=='INPUT')return;
+  e.preventDefault();
+  const enDigit=String(AR_DIGITS.indexOf(e.key));
+  if(el.type==='number'){
+    // For number inputs: manipulate value string directly
+    const cur=el.value||'';
+    const start=el.selectionStart??cur.length;
+    const end=el.selectionEnd??cur.length;
+    const next=cur.slice(0,start)+enDigit+cur.slice(end);
+    el.value=next;
+    try{el.setSelectionRange(start+1,start+1);}catch(ex){}
+  } else {
+    // For text inputs: insert at cursor
+    const start=el.selectionStart??el.value.length;
+    const end=el.selectionEnd??el.value.length;
+    el.value=el.value.slice(0,start)+enDigit+el.value.slice(end);
+    try{el.setSelectionRange(start+1,start+1);}catch(ex){}
+  }
+  el.dispatchEvent(new Event('input',{bubbles:true}));
+},true);
+// Also handle paste with Arabic numbers
 document.addEventListener('input',function(e){
   const el=e.target;
-  if(el.tagName==='INPUT'&&el.type!=='checkbox'&&el.type!=='radio'){
-    const v=el.value;
-    const converted=arToEn(v);
-    if(v!==converted){
-      const pos=el.selectionStart;
-      el.value=converted;
-      try{el.setSelectionRange(pos,pos);}catch(e){}
-    }
+  if(!el||el.tagName!=='INPUT'||el.type==='checkbox'||el.type==='radio')return;
+  if(el.type!=='number'){
+    const v=el.value, c=arToEn(v);
+    if(v!==c){const p=el.selectionStart;el.value=c;try{el.setSelectionRange(p,p);}catch(ex){}}
   }
 },{capture:true});
 const GAS_URL='https://script.google.com/macros/s/AKfycbzT7rGxYOkkEjqEa5BOxoQA8ffn4b6f4lN-8c8KEXcB59ggn3CqHBjMaQPAZf6O5ooU/exec';
