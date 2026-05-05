@@ -569,7 +569,11 @@ async function pullFromSheets(){
       if(remote&&typeof remote==='object'&&Object.keys(remote).length>0){
         ['students','groups','schools','centers'].forEach(k=>{if(!remote[k])remote[k]={};});
         db=remote;
+        // Auto-close sem1 for all students after loading remote data
+        let ch=false;
+        obj(db.students).forEach(s=>{if(autoCloseSem1(s))ch=true;});
         localStorage.setItem(SK,JSON.stringify(db));
+        if(ch)setTimeout(pushToSheets,2000);// push back if we auto-closed any sem1
         updHdr();popGrpSels();popGrpFilter();
         renderStudents('');
       }
@@ -1072,8 +1076,9 @@ function savePay(){
       // Auto-split: part to sem1, rest to sem2
       const sem1Part=Math.round(rem1*100)/100;
       const sem2Part=Math.round((amount-rem1)*100)/100;
-      s.payments.push({id:genId(),amount:sem1Part,date,receipt,note,semester:1,createdAt:new Date().toISOString()});
-      s.payments.push({id:genId(),amount:sem2Part,date,receipt,note:(note?(note+' · '):'')+'ترحيل من الفصل الأول',semester:2,createdAt:new Date().toISOString()});
+      const splitNote=(note?(note+' · '):'')+'تم ترحيل '+fmt(sem2Part)+' د.أ للفصل الثاني من هذه الدفعة';
+      s.payments.push({id:genId(),amount:sem1Part,date,receipt,note:splitNote,semester:1,splitOverflow:sem2Part,createdAt:new Date().toISOString()});
+      s.payments.push({id:genId(),amount:sem2Part,date,receipt,note:(note?(note+' · '):'')+'ترحيل من الفصل الأول ('+fmt(sem1Part)+' د.أ ذهبت للفصل الأول)',semester:2,fromSplit:true,createdAt:new Date().toISOString()});
       s.sem1Closed=true;
       splitMsg=`<div class="al al-i">تم تقسيم الدفعة تلقائياً:<br>${fmt(sem1Part)} د.أ → الفصل الأول (مكتمل ✓)<br>${fmt(sem2Part)} د.أ → الفصل الثاني</div>`;
     } else {
@@ -1225,7 +1230,7 @@ function renderStDet(id){
         sorted.map(p=>`<div class="pi">
           <div class="pl">
             <div class="pa">+ ${fmt(p.amount)} د.أ</div>
-            <span class="psem ${p.semester==2?'ps2':'ps1'}">${p.semester==2?'فصل ثاني':'فصل أول'}${p.prefilled?' · مدفوع مسبقاً':''}</span>
+            <span class="psem ${p.semester==2?'ps2':'ps1'}">${p.semester==2?'فصل ثاني':'فصل أول'}${p.prefilled?' · مدفوع مسبقاً':''}${p.splitOverflow?' · ➡ ترحيل '+fmt(p.splitOverflow)+' د.أ':''}${p.fromSplit?' · من ترحيل':''}</span>
           </div>
           <div class="pm">
             <div>${p.date}</div>
