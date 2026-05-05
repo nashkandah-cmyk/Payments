@@ -481,6 +481,28 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
 <script>
 'use strict';
 const SK='pmdb_v4';
+
+// ── ARABIC NUMERALS CONVERTER ─────────────────────────────────────────────────
+function arToEn(str){
+  return String(str).replace(/[٠١٢٣٤٥٦٧٨٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+}
+function convertArNums(el){
+  const v=el.value, converted=arToEn(v);
+  if(v!==converted){el.value=converted;el.dispatchEvent(new Event('input'));}
+}
+// Apply to all number/date/text inputs globally
+document.addEventListener('input',function(e){
+  const el=e.target;
+  if(el.tagName==='INPUT'&&el.type!=='checkbox'&&el.type!=='radio'){
+    const v=el.value;
+    const converted=arToEn(v);
+    if(v!==converted){
+      const pos=el.selectionStart;
+      el.value=converted;
+      try{el.setSelectionRange(pos,pos);}catch(e){}
+    }
+  }
+},{capture:true});
 const GAS_URL='https://script.google.com/macros/s/AKfycbzT7rGxYOkkEjqEa5BOxoQA8ffn4b6f4lN-8c8KEXcB59ggn3CqHBjMaQPAZf6O5ooU/exec';
 let db={students:{},groups:{},schools:{},centers:{}};
 let PW={ent:null,entType:'student',sem:1,enroll:'both'};
