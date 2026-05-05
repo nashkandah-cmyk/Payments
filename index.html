@@ -747,19 +747,19 @@ function renderGrpDet(id){
         sts.map(s=>{
           const rp=relPaid(s),tgt2=target(s),r2=tgt2-rp,pct2=pctBar(rp,tgt2),bc2=barColor(pct2);
           const eTag={both:'فصلين',sem1:'ف١',sem2:'ف٢'}[s.enrollType||'both'];
-          return \`<div class="item" onclick="openDet('student','\${s.id}')">
-            <div class="irow">
-              <div>
-                <div class="iname">\${s.name} <span class="tag tb">\${eTag}</span></div>
-                <div class="isub">\${(s.payments||[]).length} دفعة · مدفوع \${fmt(rp)} د.أ</div>
-              </div>
-              <div class="iright">
-                <div style="font-size:12px;font-weight:500;color:var(--\${r2>0?'rd':'gr'}-t)">\${fmt(r2)} د.أ</div>
-                <div style="font-size:10px;color:var(--tx3)">\${pct2.toFixed(0)}% مسدّد</div>
-              </div>
-            </div>
-            <div class="pw"><div class="pb" style="width:\${pct2.toFixed(1)}%;background:\${bc2}"></div></div>
-          </div>\`;
+          return '<div class="item" onclick="openDet('student',''+s.id+'')">'+
+            '<div class="irow">'+
+              '<div>'+
+                '<div class="iname">'+s.name+' <span class="tag tb">'+eTag+'</span></div>'+
+                '<div class="isub">'+(s.payments||[]).length+' دفعة · مدفوع '+fmt(rp)+' د.أ</div>'+
+              '</div>'+
+              '<div class="iright">'+
+                '<div style="font-size:12px;font-weight:500;color:var(--'+(r2>0?'rd':'gr')+'-t)">'+fmt(r2)+' د.أ</div>'+
+                '<div style="font-size:10px;color:var(--tx3)">'+pct2.toFixed(0)+'% مسدّد</div>'+
+              '</div>'+
+            '</div>'+
+            '<div class="pw"><div class="pb" style="width:'+pct2.toFixed(1)+'%;background:'+bc2+'"></div></div>'+
+          '</div>';
         }).join('')}
     </div>`;
 }
