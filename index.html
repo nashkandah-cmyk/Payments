@@ -230,8 +230,25 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
       <div class="f"><label>المبلغ الفصلي</label><input type="number" id="st-sem" placeholder="تلقائي" min="0"/></div>
       <div class="f"><label>المستهدف</label><input type="number" id="st-tgt" placeholder="بحسب الفصول" readonly/></div>
     </div>
-    <div class="fg fg1" style="margin-bottom:10px">
+    <div class="fg fg1">
       <div class="f"><label>ملاحظات</label><input id="st-notes" placeholder="اختياري"/></div>
+    </div>
+    <div class="dvd"></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <input type="checkbox" id="st-make-plan" style="width:16px;height:16px;cursor:pointer" onchange="toggleNewPlan()"/>
+      <label for="st-make-plan" style="cursor:pointer;font-size:13px;font-weight:500">إنشاء جدول دفعات فوراً</label>
+    </div>
+    <div id="st-plan-fields" style="display:none;background:var(--sur2);border-radius:var(--rs);padding:12px;margin-bottom:10px">
+      <div class="fg fg3">
+        <div class="f"><label>عدد الدفعات</label><input type="number" id="st-plan-cnt" value="4" min="1" max="24"/></div>
+        <div class="f"><label>تاريخ أول دفعة</label><input type="date" id="st-plan-start"/></div>
+        <div class="f"><label>الفصل</label>
+          <div class="seg">
+            <button class="sb on" id="st-ps1" onclick="setNewPlanSem(1)">فصل أول</button>
+            <button class="sb" id="st-ps2" onclick="setNewPlanSem(2)">فصل ثاني</button>
+          </div>
+        </div>
+      </div>
     </div>
     <button class="btn bp" onclick="addStudent()">حفظ الطالب</button>
   </div>
@@ -569,6 +586,8 @@ function al(id,msg,tp='d'){const e=document.getElementById(id);if(e)e.innerHTML=
 function totalPaid(e){return(e.payments||[]).reduce((a,p)=>a+p.amount,0);}
 function paidSem(s,sm){return(s.payments||[]).filter(p=>p.semester==sm).reduce((a,p)=>a+p.amount,0);}
 function target(s){
+  // Use custom withdrawal target if student is withdrawn and has one set
+  if(s.withdrawn&&s.withdrawCustomTarget!=null)return s.withdrawCustomTarget;
   if(s.enrollType==='sem1'||s.enrollType==='sem2')return s.semester||s.annual/2;
   return s.annual||0;
 }
@@ -635,6 +654,19 @@ function onStGrp(){
 }
 
 // ── STUDENTS ──────────────────────────────────────────────────────────────────
+let newPlanSem=1;
+function toggleNewPlan(){
+  const show=document.getElementById('st-make-plan').checked;
+  document.getElementById('st-plan-fields').style.display=show?'block':'none';
+  if(show&&!document.getElementById('st-plan-start').value){
+    document.getElementById('st-plan-start').value=new Date().toISOString().split('T')[0];
+  }
+}
+function setNewPlanSem(n){
+  newPlanSem=n;
+  document.getElementById('st-ps1').classList.toggle('on',n===1);
+  document.getElementById('st-ps2').classList.toggle('on',n===2);
+}
 function addStudent(){
   const name=v('st-name').trim();
   if(!name)return al('st-al','الرجاء إدخال اسم الطالب');
@@ -642,10 +674,29 @@ function addStudent(){
   const annual=parseFloat(v('st-ann'))||0;
   const semester=parseFloat(v('st-sem'))||annual/2;
   const id=genId();
-  db.students[id]={id,name,groupId:gid,groupName:g?g.name:'',annual,semester,notes:v('st-notes').trim(),enrollType:stEnroll,payments:[],sem1Closed:false,sem2Closed:false,createdAt:new Date().toISOString()};
-  saveDB();al('st-al','تم حفظ الطالب '+name+' ✓','s');
+  const newSt={id,name,groupId:gid,groupName:g?g.name:'',annual,semester,notes:v('st-notes').trim(),enrollType:stEnroll,payments:[],sem1Closed:false,sem2Closed:false,createdAt:new Date().toISOString()};
+  // Create installment plan if checkbox is checked
+  const makePlan=document.getElementById('st-make-plan')?.checked;
+  if(makePlan){
+    const cnt=parseInt(v('st-plan-cnt'))||4;
+    const start=v('st-plan-start');
+    if(start){
+      const tgt=stEnroll==='both'?annual:semester;
+      const perInst=Math.round((tgt/cnt)*100)/100;
+      const installments=[];
+      for(let i=0;i<cnt;i++){
+        const d=new Date(start);d.setMonth(d.getMonth()+i);
+        installments.push({id:genId(),num:i+1,dueDate:d.toISOString().split('T')[0],amount:perInst,paid:false,paymentId:null,semester:newPlanSem});
+      }
+      newSt.installPlan={count:cnt,startDate:start,perInstallment:perInst,semester:newPlanSem,installments};
+    }
+  }
+  db.students[id]=newSt;
+  saveDB();al('st-al','تم حفظ الطالب '+name+(makePlan?' مع جدول دفعات':'')+' ✓','s');
   ['st-name','st-ann','st-sem','st-tgt','st-notes'].forEach(x=>set(x,''));
   set('st-grp','');setEnr('both');
+  if(document.getElementById('st-make-plan'))document.getElementById('st-make-plan').checked=false;
+  if(document.getElementById('st-plan-fields'))document.getElementById('st-plan-fields').style.display='none';
   renderStudents('');
 }
 let sfFilt='all';
@@ -682,7 +733,8 @@ function popGrpFilter(){
   s.innerHTML='<option value="">كل المجموعات</option>'+obj(db.groups).map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
 }
 function popGrpSels(){
-  const opts='<option value="">— بدون مجموعة —</option>'+obj(db.groups).map(g=>`<option value="${g.id}">${g.name}${g.generation?' ('+g.generation+')':''}</option>`).join('');
+  const sorted=obj(db.groups).sort((a,b)=>a.name.localeCompare(b.name,'ar'));
+  const opts='<option value="">— بدون مجموعة —</option>'+sorted.map(g=>`<option value="${g.id}">${g.name}${g.generation?' ('+g.generation+')':''}</option>`).join('');
   ['st-grp'].forEach(id=>{const e=document.getElementById(id);if(e)e.innerHTML=opts;});
 }
 
@@ -1129,8 +1181,75 @@ function renderStDet(id){
 }
 function toggleWithdrawn(id){
   const s=db.students[id];if(!s)return;
-  s.withdrawn=!s.withdrawn;
-  saveDB();renderStDet(id);
+  if(s.withdrawn){
+    if(!confirm('إعادة تفعيل '+s.name+'؟'))return;
+    s.withdrawn=false;s.withdrawDate='';s.withdrawType='';s.withdrawCustomTarget=null;
+    saveDB();renderStDet(id);return;
+  }
+  const sem=fmt(s.semester||s.annual/2||0);
+  const ann=fmt(s.annual||0);
+  showModal('تسجيل انسحاب — '+s.name,`
+    <div class="al al-i" style="margin-bottom:12px">
+      الفصلي: <strong>${sem} د.أ</strong> · السنوي: <strong>${ann} د.أ</strong>
+    </div>
+    <div class="f" style="margin-bottom:12px">
+      <label style="margin-bottom:7px;display:block">وقت الانسحاب</label>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+          <input type="radio" name="wd-type" value="after_sem1" checked onchange="onWdType('${id}')"/>
+          بعد إنهاء الفصل الأول (المطلوب: ${sem} د.أ)
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+          <input type="radio" name="wd-type" value="during_sem1" onchange="onWdType('${id}')"/>
+          خلال الفصل الأول
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+          <input type="radio" name="wd-type" value="during_sem2" onchange="onWdType('${id}')"/>
+          خلال الفصل الثاني (الفصل الأول كامل + جزء من الثاني)
+        </label>
+      </div>
+    </div>
+    <div id="wd-custom-wrap" style="display:none;background:var(--sur2);border-radius:var(--rs);padding:11px;margin-bottom:10px">
+      <div class="f">
+        <label>المبلغ المستحق عليه (د.أ)</label>
+        <input type="number" id="wd-custom-amt" placeholder="أدخل المبلغ الفعلي المستحق" min="0"/>
+      </div>
+    </div>
+    <div class="fg fg2" style="margin-bottom:0">
+      <div class="f">
+        <label>تاريخ الانسحاب</label>
+        <input type="date" id="wd-date" value="${new Date().toISOString().split('T')[0]}"/>
+      </div>
+      <div class="f">
+        <label>ملاحظة (اختياري)</label>
+        <input id="wd-note" placeholder="سبب الانسحاب..."/>
+      </div>
+    </div>
+  `,`<button class="btn bd" onclick="confirmWithdraw('${id}')">تأكيد الانسحاب</button>
+     <button class="btn" onclick="closeModal()">إلغاء</button>`);
+}
+function onWdType(sid){
+  const t=document.querySelector('input[name="wd-type"]:checked')?.value;
+  const wrap=document.getElementById('wd-custom-wrap');
+  if(wrap)wrap.style.display=(t==='during_sem1'||t==='during_sem2')?'block':'none';
+}
+function confirmWithdraw(id){
+  const s=db.students[id];if(!s)return;
+  const wdType=document.querySelector('input[name="wd-type"]:checked')?.value||'after_sem1';
+  const customAmt=parseFloat(document.getElementById('wd-custom-amt')?.value)||null;
+  s.withdrawn=true;
+  s.withdrawDate=document.getElementById('wd-date')?.value||new Date().toISOString().split('T')[0];
+  s.withdrawNote=document.getElementById('wd-note')?.value?.trim()||'';
+  s.withdrawType=wdType;
+  // Set effective target based on withdrawal type
+  if(wdType==='after_sem1'){
+    s.withdrawCustomTarget=s.semester||s.annual/2||0;
+  } else if(customAmt!==null&&customAmt>=0){
+    s.withdrawCustomTarget=customAmt;
+  } else {
+    s.withdrawCustomTarget=null;// use original target
+  }
+  saveDB();closeModal();renderStDet(id);
 }
 
 function markSemPaid(id,sem){
@@ -1536,34 +1655,53 @@ function buildExpectedRpt(q){
 
 // ── LOST / WITHDRAWN STUDENTS REPORT ─────────────────────────────────────────
 function buildLostRpt(q){
-  const lostSts=obj(db.students).filter(s=>s.withdrawn&&(!q||s.name.toLowerCase().includes(q)));
-  const allSts=obj(db.students).filter(s=>!q||s.name.toLowerCase().includes(q));
-  const activeSts=allSts.filter(s=>!s.withdrawn);
+  const lostSts=obj(db.students).filter(s=>s.withdrawn&&(!q||s.name.toLowerCase().includes(q)||(s.groupName||'').toLowerCase().includes(q)));
+  const activeSts=obj(db.students).filter(s=>!s.withdrawn);
 
-  const totalTarget=allSts.reduce((a,s)=>a+target(s),0);
-  const activeTarget=activeSts.reduce((a,s)=>a+target(s),0);
   const lostTarget=lostSts.reduce((a,s)=>a+target(s),0);
-  const activePaid=activeSts.reduce((a,s)=>a+relPaid(s),0);
   const lostPaid=lostSts.reduce((a,s)=>a+relPaid(s),0);
   const lostUnpaid=lostSts.reduce((a,s)=>a+rem(s),0);
+  const activePaid=activeSts.reduce((a,s)=>a+relPaid(s),0);
 
   let html=`<div class="card">
-    <div class="ct">تقرير الفاقد</div>
+    <div class="ct">ملخص الفاقد</div>
     <div class="mts m4">
-      <div class="mt"><div class="ml">الطلاب المنسحبون</div><div class="mv r">${lostSts.length}</div></div>
-      <div class="mt"><div class="ml">فاقد غير محصّل</div><div class="mv r">${fmt(lostUnpaid)} <span style="font-size:10px">د.أ</span></div></div>
-      <div class="mt"><div class="ml">التحصيل الفعلي (بدون الفاقد)</div><div class="mv g">${fmt(activePaid)} <span style="font-size:10px">د.أ</span></div></div>
-      <div class="mt"><div class="ml">التحصيل المفترض (مع الفاقد)</div><div class="mv b">${fmt(activePaid+lostPaid)} <span style="font-size:10px">د.أ</span></div></div>
+      <div class="mt"><div class="ml">عدد المنسحبين</div><div class="mv r">${lostSts.length}</div></div>
+      <div class="mt"><div class="ml">محصّل من المنسحبين</div><div class="mv a">${fmt(lostPaid)} <span style="font-size:10px">د.أ</span></div></div>
+      <div class="mt"><div class="ml">الفاقد (غير محصّل)</div><div class="mv r">${fmt(lostUnpaid)} <span style="font-size:10px">د.أ</span></div></div>
+      <div class="mt"><div class="ml">محصّل من الفعليين</div><div class="mv g">${fmt(activePaid)} <span style="font-size:10px">د.أ</span></div></div>
     </div>
   </div>`;
 
   if(!lostSts.length){
-    html+=`<div class="card"><div class="empty"><div class="ei">✅</div>لا يوجد طلاب منسحبون مسجّلون<br><br><span style="font-size:11px;color:var(--tx3)">لتسجيل طالب كمنسحب، افتح ملفه واضغط "تسجيل كمنسحب"</span></div></div>`;
+    html+=`<div class="card"><div class="empty"><div class="ei">✅</div>لا يوجد طلاب منسحبون<br><br><span style="font-size:11px;color:var(--tx3)">افتح ملف الطالب واضغط "تسجيل كمنسحب"</span></div></div>`;
   } else {
-    html+=`<div class="card"><div class="ct">الطلاب المنسحبون</div>
-      <table class="tbl"><thead><tr><th>الطالب</th><th>المجموعة</th><th>المستهدف</th><th>المدفوع</th><th>الفاقد</th></tr></thead>
-      <tbody>${lostSts.map(s=>{const r=rem(s);return`<tr onclick="openDet('student','${s.id}')" style="cursor:pointer"><td><strong>${s.name}</strong> <span class="tag rd" style="background:var(--rd-bg);color:var(--rd-t);border-color:var(--rd-b)">منسحب</span></td><td>${s.groupName||'—'}</td><td>${fmt(target(s))}</td><td style="color:var(--gr-t)">${fmt(relPaid(s))}</td><td style="color:var(--rd-t);font-weight:500">${fmt(r)}</td></tr>`;}).join('')}</tbody>
-    </table></div>`;
+    const sorted=[...lostSts].sort((a,b)=>(b.withdrawDate||'').localeCompare(a.withdrawDate||''));
+    html+=`<div class="card">
+      <div class="ct">تفاصيل الطلاب المنسحبين</div>
+      <table class="tbl">
+        <thead><tr><th>الطالب</th><th>المجموعة</th><th>تاريخ الانسحاب</th><th>المطلوب منه</th><th>المحصّل منه</th><th>الفاقد</th></tr></thead>
+        <tbody>${sorted.map(s=>{
+          const r=rem(s);
+          return'<tr onclick="openDet(&quot;student&quot;,&quot;'+s.id+'&quot;)" style="cursor:pointer">'+
+            '<td><strong>'+s.name+'</strong>'+(s.withdrawNote?'<br><span style="font-size:10px;color:var(--tx3)">'+esc(s.withdrawNote)+'</span>':'')+'</td>'+
+            '<td>'+( s.groupName||'—')+'</td>'+
+            '<td style="font-size:11px">'+(s.withdrawDate||'—')+'<br>'+({'after_sem1':'بعد ف١','during_sem1':'خلال ف١','during_sem2':'خلال ف٢'}[s.withdrawType]||'—')+'</td>'+
+            '<td>'+fmt(target(s))+'</td>'+
+            '<td style="color:var(--gr-t);font-weight:500">'+fmt(relPaid(s))+'</td>'+
+            '<td style="color:var(--'+(r>0?'rd':'gr')+'-t);font-weight:600">'+fmt(r)+'</td>'+
+          '</tr>';
+        }).join('')}</tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3" style="padding:7px 9px;font-weight:600">الإجمالي</td>
+            <td style="padding:7px 9px;font-weight:500">${fmt(lostTarget)}</td>
+            <td style="padding:7px 9px;color:var(--gr-t);font-weight:600">${fmt(lostPaid)}</td>
+            <td style="padding:7px 9px;color:var(--rd-t);font-weight:600">${fmt(lostUnpaid)}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>`;
   }
 
   document.getElementById('rpt-out').innerHTML=html;
