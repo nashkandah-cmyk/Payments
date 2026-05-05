@@ -551,6 +551,10 @@ function setSyncStatus(st){
 async function loadDB(){
   try{const r=localStorage.getItem(SK);if(r)db=JSON.parse(r);}catch(e){}
   ['students','groups','schools','centers'].forEach(k=>{if(!db[k])db[k]={};});
+  // Auto-close sem1 for existing students
+  let changed=false;
+  obj(db.students).forEach(s=>{if(autoCloseSem1(s))changed=true;});
+  if(changed)localStorage.setItem(SK,JSON.stringify(db));
   updHdr();popGrpSels();popGrpFilter();
   await pullFromSheets();
 }
@@ -624,6 +628,18 @@ const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(
 function al(id,msg,tp='d'){const e=document.getElementById(id);if(e)e.innerHTML=msg?`<div class="al al-${tp}">${msg}</div>`:'';}
 function totalPaid(e){return(e.payments||[]).reduce((a,p)=>a+p.amount,0);}
 function paidSem(s,sm){return(s.payments||[]).filter(p=>p.semester==sm).reduce((a,p)=>a+p.amount,0);}
+function sem1Complete(s){
+  const semAmt=s.semester||s.annual/2||0;
+  return s.sem1Closed||(semAmt>0&&paidSem(s,1)>=semAmt);
+}
+function autoCloseSem1(s){
+  // Auto-close sem1 if fully paid
+  const semAmt=s.semester||s.annual/2||0;
+  if(!s.sem1Closed&&semAmt>0&&paidSem(s,1)>=semAmt){
+    s.sem1Closed=true;return true;
+  }
+  return false;
+}
 function target(s){
   // Use custom withdrawal target if student is withdrawn and has one set
   if(s.withdrawn&&s.withdrawCustomTarget!=null)return s.withdrawCustomTarget;
@@ -993,6 +1009,22 @@ function GS(n){
       </div>`;
     }
     document.getElementById('pw2-info').innerHTML=info;
+    // Auto-select sem2 if sem1 is complete
+    if(PW.entType==='student'&&sem1Complete(PW.ent)){
+      PW.sem=2;
+      // Disable sem1 button
+      const s1b=document.getElementById('sem1-btn');
+      const s2b=document.getElementById('sem2-btn');
+      if(s1b){s1b.disabled=true;s1b.style.opacity='0.4';s1b.title='الفصل الأول مكتمل';}
+      if(s2b){s2b.disabled=false;s2b.style.opacity='';}
+      const sw=document.getElementById('sem-warn');
+      if(sw)sw.innerHTML='<span style="color:var(--gr-t)">✓ الفصل الأول مكتمل — الدفعة ستضاف للفصل الثاني تلقائياً</span>';
+    } else {
+      const s1b=document.getElementById('sem1-btn');
+      const s2b=document.getElementById('sem2-btn');
+      if(s1b){s1b.disabled=false;s1b.style.opacity='';}
+      if(s2b){s2b.disabled=false;s2b.style.opacity='';}
+    }
     setPSem(PW.sem);
   }
   if(n===3&&!v('pw-date'))set('pw-date',new Date().toISOString().split('T')[0]);
@@ -1026,17 +1058,45 @@ function savePay(){
   const rb=v('pw-rbook'),rn=v('pw-rnum');
   const receipt=rb&&rn?rb+'-'+rn:rn||rb||'';
   const note=v('pw-note').trim();
-  const p={id:genId(),amount,date,receipt,note,semester:PW.sem,createdAt:new Date().toISOString()};
   const src=PW.entType==='student'?db.students:PW.entType==='school'?db.schools:db.centers;
   if(!src[PW.ent.id].payments)src[PW.ent.id].payments=[];
-  src[PW.ent.id].payments.push(p);
+
+  let splitMsg='';
+
+  if(PW.entType==='student'&&PW.sem===1){
+    const s=src[PW.ent.id];
+    const semAmt=s.semester||s.annual/2||0;
+    const alreadyPaidSem1=paidSem(s,1);
+    const rem1=semAmt-alreadyPaidSem1;
+    if(semAmt>0&&!s.sem1Closed&&rem1>0&&amount>rem1){
+      // Auto-split: part to sem1, rest to sem2
+      const sem1Part=Math.round(rem1*100)/100;
+      const sem2Part=Math.round((amount-rem1)*100)/100;
+      s.payments.push({id:genId(),amount:sem1Part,date,receipt,note,semester:1,createdAt:new Date().toISOString()});
+      s.payments.push({id:genId(),amount:sem2Part,date,receipt,note:(note?(note+' · '):'')+'ترحيل من الفصل الأول',semester:2,createdAt:new Date().toISOString()});
+      s.sem1Closed=true;
+      splitMsg=`<div class="al al-i">تم تقسيم الدفعة تلقائياً:<br>${fmt(sem1Part)} د.أ → الفصل الأول (مكتمل ✓)<br>${fmt(sem2Part)} د.أ → الفصل الثاني</div>`;
+    } else {
+      // Normal payment
+      s.payments.push({id:genId(),amount,date,receipt,note,semester:PW.sem,createdAt:new Date().toISOString()});
+      // Auto-close sem1 if now complete
+      autoCloseSem1(s);
+    }
+  } else {
+    src[PW.ent.id].payments.push({id:genId(),amount,date,receipt,note,semester:PW.sem,createdAt:new Date().toISOString()});
+    // Auto-close sem1 check for student
+    if(PW.entType==='student')autoCloseSem1(src[PW.ent.id]);
+  }
+
   saveDB();PW.ent=src[PW.ent.id];
   let rp,tgt;
   if(PW.entType==='student'){rp=relPaid(PW.ent);tgt=target(PW.ent);}
   else{rp=totalPaid(PW.ent);tgt=PW.ent.total||0;}
   const r=tgt-rp;
+  const s1done=PW.entType==='student'&&sem1Complete(PW.ent);
   document.getElementById('pw5').innerHTML=`
-    <div class="al al-s">تم حفظ الدفعة بنجاح ✓</div>
+    ${splitMsg||'<div class="al al-s">تم حفظ الدفعة بنجاح ✓</div>'}
+    ${s1done&&!splitMsg?'<div class="al al-s" style="margin-top:6px">✓ الفصل الأول اكتمل وأُغلق تلقائياً</div>':''}
     <div class="mts m3">
       <div class="mt"><div class="ml">المستهدف</div><div class="mv">${fmt(tgt)}</div></div>
       <div class="mt"><div class="ml">إجمالي المدفوع</div><div class="mv g">${fmt(rp)}</div></div>
