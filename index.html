@@ -637,10 +637,35 @@ function sem1Complete(s){
   return s.sem1Closed||(semAmt>0&&paidSem(s,1)>=semAmt);
 }
 function autoCloseSem1(s){
-  // Auto-close sem1 if fully paid
   const semAmt=s.semester||s.annual/2||0;
-  if(!s.sem1Closed&&semAmt>0&&paidSem(s,1)>=semAmt){
-    s.sem1Closed=true;return true;
+  if(!semAmt)return false;
+  const paid1=paidSem(s,1);
+  if(!s.sem1Closed&&paid1>=semAmt){
+    s.sem1Closed=true;
+    // Check overflow — transfer excess to sem2 if not already done
+    const overflow=Math.round((paid1-semAmt)*100)/100;
+    if(overflow>0.005&&!s.overflowTransferred){
+      const lastP=[...(s.payments||[])].filter(p=>p.semester==1&&!p.fromSplit)
+        .sort((a,b)=>a.date>b.date?-1:1)[0];
+      s.payments.push({
+        id:genId(),
+        amount:overflow,
+        date:lastP?.date||new Date().toISOString().split('T')[0],
+        receipt:lastP?.receipt||'',
+        note:'ترحيل تلقائي من الفصل الأول — مبلغ زائد '+fmt(overflow)+' د.أ',
+        semester:2,
+        fromSplit:true,
+        autoTransfer:true,
+        createdAt:new Date().toISOString()
+      });
+      // Add note to the last sem1 payment
+      if(lastP){
+        lastP.splitOverflow=overflow;
+        lastP.note=(lastP.note?(lastP.note+' · '):'')+'تم ترحيل '+fmt(overflow)+' د.أ للفصل الثاني';
+      }
+      s.overflowTransferred=true;
+    }
+    return true;
   }
   return false;
 }
