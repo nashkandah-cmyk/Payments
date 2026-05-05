@@ -747,7 +747,7 @@ function renderGrpDet(id){
         sts.map(s=>{
           const rp=relPaid(s),tgt2=target(s),r2=tgt2-rp,pct2=pctBar(rp,tgt2),bc2=barColor(pct2);
           const eTag={both:'فصلين',sem1:'ف١',sem2:'ف٢'}[s.enrollType||'both'];
-          return '<div class="item" onclick="openDet('student',''+s.id+'')">'+
+          const html='<div class="item" onclick="openDet('+JSON.stringify('student')+','+JSON.stringify(s.id)+')">'+
             '<div class="irow">'+
               '<div>'+
                 '<div class="iname">'+s.name+' <span class="tag tb">'+eTag+'</span></div>'+
@@ -760,6 +760,7 @@ function renderGrpDet(id){
             '</div>'+
             '<div class="pw"><div class="pb" style="width:'+pct2.toFixed(1)+'%;background:'+bc2+'"></div></div>'+
           '</div>';
+          return html;
         }).join('')}
     </div>`;
 }
