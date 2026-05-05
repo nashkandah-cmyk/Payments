@@ -1089,6 +1089,14 @@ function renderStDet(id){
     </div>
 
     <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:11px">
+        <div class="ct" style="margin:0">جدول الدفعات المقسّمة</div>
+        <button class="btn bp bsm" onclick="showInstPlan('${id}')">⚙ إعداد الجدول</button>
+      </div>
+      ${renderInstTable(s)}
+    </div>
+
+    <div class="card">
       <div class="ct">تعديل بيانات الطالب</div>
       <div class="fg fg2">
         <div class="f"><label>الاسم</label><input id="e-name" value="${esc(s.name)}"/></div>
@@ -1335,10 +1343,17 @@ function initRptDates(){
 }
 function rptRange(t){
   const y=new Date().getFullYear();
+  const py=y-1; // previous year
   if(t==='all')initRptDates();
-  else if(t==='sem1'){set('r-d1',y+'-01-01');set('r-d2',y+'-06-30');}
-  else if(t==='sem2'){set('r-d1',y+'-07-01');set('r-d2',y+'-12-31');}
-  else{set('r-d1',y+'-01-01');set('r-d2',y+'-12-31');}
+  else if(t==='sem1'){
+    // الفصل الأول: سبتمبر السنة الماضية → يناير هذه السنة
+    set('r-d1',py+'-09-01');set('r-d2',y+'-01-31');
+  }
+  else if(t==='sem2'){
+    // الفصل الثاني: فبراير → يونيو هذه السنة
+    set('r-d1',y+'-02-01');set('r-d2',y+'-06-30');
+  }
+  else{set('r-d1',py+'-09-01');set('r-d2',y+'-06-30');}
   buildRpt();
 }
 let rptView='summary';
@@ -1607,6 +1622,110 @@ function exportXLSX(){
 
   const fn='دفعات_'+(d1&&d2?d1+'_'+d2:new Date().toISOString().split('T')[0])+'.xlsx';
   XLSX.writeFile(wb,fn);
+}
+
+// ── INSTALLMENT PLAN ─────────────────────────────────────────────────────────
+function showInstPlan(sid){
+  const s=db.students[sid];if(!s)return;
+  const plan=s.installPlan||{};
+  showModal('جدول الدفعات — '+s.name,`
+    <div class="al al-i" style="margin-bottom:12px">المبلغ المستهدف: <strong>${fmt(target(s))} د.أ</strong></div>
+    <div class="fg fg3">
+      <div class="f"><label>عدد الدفعات</label><input type="number" id="ip-cnt" value="${plan.count||4}" min="1" max="24" oninput="previewInst('${sid}')"/></div>
+      <div class="f"><label>تاريخ أول دفعة</label><input type="date" id="ip-start" value="${plan.startDate||new Date().toISOString().split('T')[0]}" onchange="previewInst('${sid}')"/></div>
+      <div class="f"><label>الفصل</label>
+        <div class="seg">
+          <button class="sb ${(plan.semester||1)===1?'on':''}" id="ip-s1" onclick="setInstSem(1)">فصل أول</button>
+          <button class="sb ${plan.semester===2?'on':''}" id="ip-s2" onclick="setInstSem(2)">فصل ثاني</button>
+        </div>
+      </div>
+    </div>
+    <div id="ip-preview" style="margin-top:8px"></div>
+  `,`<button class="btn bp" onclick="saveInstPlan('${sid}')">حفظ الجدول</button>
+     <button class="btn" onclick="closeModal()">إلغاء</button>`);
+  setTimeout(()=>previewInst(sid),50);
+}
+
+let instSem=1;
+function setInstSem(n){
+  instSem=n;
+  document.getElementById('ip-s1').classList.toggle('on',n===1);
+  document.getElementById('ip-s2').classList.toggle('on',n===2);
+}
+
+function previewInst(sid){
+  const s=db.students[sid];if(!s)return;
+  const cnt=parseInt(document.getElementById('ip-cnt')?.value)||4;
+  const start=document.getElementById('ip-start')?.value;
+  if(!start)return;
+  const tgt=target(s);
+  const perInst=tgt/cnt;
+  const rows=[];
+  for(let i=0;i<cnt;i++){
+    const d=new Date(start);
+    d.setMonth(d.getMonth()+i);
+    rows.push({num:i+1,date:d.toISOString().split('T')[0],amount:perInst});
+  }
+  const el=document.getElementById('ip-preview');
+  if(el)el.innerHTML=`<table class="tbl"><thead><tr><th>#</th><th>التاريخ</th><th>المبلغ (د.أ)</th></tr></thead>
+    <tbody>${rows.map(r=>`<tr><td>${r.num}</td><td>${r.date}</td><td>${fmt(r.amount)}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="2" style="padding:7px 9px;font-weight:500">الإجمالي</td><td style="padding:7px 9px;font-weight:600;color:var(--gr-t)">${fmt(tgt)}</td></tr></tfoot>
+  </table>`;
+}
+
+function saveInstPlan(sid){
+  const s=db.students[sid];if(!s)return;
+  const cnt=parseInt(document.getElementById('ip-cnt')?.value)||4;
+  const start=document.getElementById('ip-start')?.value;
+  if(!start)return;
+  const tgt=target(s);
+  const perInst=Math.round((tgt/cnt)*100)/100;
+  const installments=[];
+  for(let i=0;i<cnt;i++){
+    const d=new Date(start);
+    d.setMonth(d.getMonth()+i);
+    installments.push({id:genId(),num:i+1,dueDate:d.toISOString().split('T')[0],amount:perInst,paid:false,paymentId:null,semester:instSem});
+  }
+  s.installPlan={count:cnt,startDate:start,perInstallment:perInst,semester:instSem,installments};
+  saveDB();closeModal();renderStDet(sid);
+}
+
+function renderInstTable(s){
+  if(!s.installPlan||!s.installPlan.installments||!s.installPlan.installments.length){
+    return'<div style="font-size:12px;color:var(--tx3);text-align:center;padding:10px">لا يوجد جدول — اضغط "إعداد الجدول" لإنشائه</div>';
+  }
+  const plan=s.installPlan;
+  const paid=plan.installments.filter(i=>i.paid).length;
+  return`<div style="font-size:12px;color:var(--tx3);margin-bottom:8px">${paid} من ${plan.count} دفعة مسدّدة · ${fmt(plan.perInstallment)} د.أ / دفعة</div>
+  <table class="tbl"><thead><tr><th>✓</th><th>#</th><th>التاريخ</th><th>المبلغ</th><th>الوصل</th></tr></thead>
+  <tbody>${plan.installments.map(inst=>{
+    const today=new Date().toISOString().split('T')[0];
+    const overdue=!inst.paid&&inst.dueDate<today;
+    return'<tr style="'+(inst.paid?'opacity:0.6':'')+'">'+
+      '<td><input type="checkbox" '+(inst.paid?'checked':'')+' onchange="toggleInst(&quot;'+s.id+'&quot;,&quot;'+inst.id+'&quot;,this.checked)" style="width:16px;height:16px;cursor:pointer"/></td>'+
+      '<td>'+inst.num+'</td>'+
+      '<td style="color:var(--'+(overdue?'rd':inst.paid?'gr':'tx')+'-t)">'+inst.dueDate+(overdue?' ⚠':'')+'</td>'+
+      '<td style="font-weight:500">'+fmt(inst.amount)+'</td>'+
+      '<td style="font-size:11px;color:var(--tx3)">'+(inst.paymentId?'مسجّلة':'—')+'</td>'+
+    '</tr>';
+  }).join('')}</tbody></table>`;
+}
+
+function toggleInst(sid,iid,checked){
+  const s=db.students[sid];if(!s||!s.installPlan)return;
+  const inst=s.installPlan.installments.find(x=>x.id===iid);
+  if(!inst)return;
+  if(checked){
+    // Create payment entry
+    const pid=genId();
+    s.payments.push({id:pid,amount:inst.amount,date:new Date().toISOString().split('T')[0],receipt:'',note:'دفعة جدول #'+inst.num,semester:s.installPlan.semester,fromPlan:true});
+    inst.paid=true;inst.paymentId=pid;
+  } else {
+    // Remove associated payment
+    if(inst.paymentId)s.payments=s.payments.filter(p=>p.id!==inst.paymentId);
+    inst.paid=false;inst.paymentId=null;
+  }
+  saveDB();renderStDet(sid);
 }
 
 loadDB();
