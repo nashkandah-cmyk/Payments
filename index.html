@@ -714,20 +714,62 @@ function renderGroups(){
 }
 function openGrpDetail(id){
   const g=db.groups[id];if(!g)return;
-  const sts=obj(db.students).filter(s=>s.groupId===id);
-  showModal('تفاصيل مجموعة '+g.name,`
-    <div class="mts m3">
-      <div class="mt"><div class="ml">عدد الأفراد</div><div class="mv">${g.members}</div></div>
-      <div class="mt"><div class="ml">المبلغ السنوي</div><div class="mv">${fmt(g.annual)}</div></div>
-      <div class="mt"><div class="ml">نصيب الفرد</div><div class="mv">${fmt(g.members>0?g.annual/g.members:0)}</div></div>
+  ['students','groups','pay','schools','centers','reports'].forEach(x=>document.getElementById('tab-'+x).style.display='none');
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
+  document.getElementById('tab-detail').style.display='block';
+  renderGrpDet(id);
+}
+function renderGrpDet(id){
+  const g=db.groups[id];if(!g)return;
+  const sts=obj(db.students).filter(s=>s.groupId===id).sort((a,b)=>a.name.localeCompare(b.name,'ar'));
+  const totPaid=sts.reduce((a,s)=>a+totalPaid(s),0);
+  const totTgt=sts.reduce((a,s)=>a+target(s),0);
+  const totRem=sts.reduce((a,s)=>a+rem(s),0);
+  const pct=pctBar(totPaid,totTgt), bc=barColor(pct);
+  document.getElementById('det-body').innerHTML=`
+    <div class="card">
+      <button class="btn bsm" onclick="TAB('groups')" style="margin-bottom:11px">← رجوع</button>
+      <div style="font-size:15px;font-weight:600;margin-bottom:3px">${g.name} ${g.generation?'<span class="tag tp">'+g.generation+'</span>':''}</div>
+      <div style="font-size:11px;color:var(--tx3);margin-bottom:12px">${g.members} فرد · سنوي ${fmt(g.annual)} · نصيب الفرد ${fmt(g.members>0?g.annual/g.members:0)} د.أ</div>
+      <div class="mts m3">
+        <div class="mt"><div class="ml">إجمالي المستهدف</div><div class="mv">${fmt(totTgt)}</div></div>
+        <div class="mt"><div class="ml">إجمالي المحصّل</div><div class="mv g">${fmt(totPaid)}</div></div>
+        <div class="mt"><div class="ml">إجمالي المتبقي</div><div class="mv ${totRem>0?'r':'g'}">${fmt(totRem)}</div></div>
+      </div>
+      <div class="pw"><div class="pb" style="width:${pct.toFixed(1)}%;background:${bc}"></div></div>
     </div>
-    <div class="dvd"></div>
-    <div style="font-size:12px;font-weight:500;margin-bottom:7px;color:var(--tx2)">تعديل عدد الأفراد</div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:11px">
+        <div class="ct" style="margin:0">طلاب المجموعة (${sts.length})</div>
+        <button class="btn bp bsm" onclick="showGrpEdit('${id}')">تعديل المجموعة</button>
+      </div>
+      ${sts.length===0?'<div class="empty"><div class="ei">👤</div>لا يوجد طلاب في هذه المجموعة</div>':
+        sts.map(s=>{
+          const rp=relPaid(s),tgt2=target(s),r2=tgt2-rp,pct2=pctBar(rp,tgt2),bc2=barColor(pct2);
+          const eTag={both:'فصلين',sem1:'ف١',sem2:'ف٢'}[s.enrollType||'both'];
+          return \`<div class="item" onclick="openDet('student','\${s.id}')">
+            <div class="irow">
+              <div>
+                <div class="iname">\${s.name} <span class="tag tb">\${eTag}</span></div>
+                <div class="isub">\${(s.payments||[]).length} دفعة · مدفوع \${fmt(rp)} د.أ</div>
+              </div>
+              <div class="iright">
+                <div style="font-size:12px;font-weight:500;color:var(--\${r2>0?'rd':'gr'}-t)">\${fmt(r2)} د.أ</div>
+                <div style="font-size:10px;color:var(--tx3)">\${pct2.toFixed(0)}% مسدّد</div>
+              </div>
+            </div>
+            <div class="pw"><div class="pb" style="width:\${pct2.toFixed(1)}%;background:\${bc2}"></div></div>
+          </div>\`;
+        }).join('')}
+    </div>`;
+}
+function showGrpEdit(id){
+  const g=db.groups[id];if(!g)return;
+  showModal('تعديل مجموعة '+g.name,`
     <div class="fg fg2">
       <div class="f"><label>العدد الجديد</label><input type="number" id="modal-mem" value="${g.members}" min="1"/></div>
       <div class="f"><label>المبلغ السنوي الجديد</label><input type="number" id="modal-ann" value="${g.annual}" min="0"/></div>
     </div>
-    <div id="modal-grp-calc" style="font-size:11px;color:var(--tx3);margin-top:4px"></div>
   `,`<button class="btn bp" onclick="applyGrpChange('${id}')">تطبيق التغيير</button>
      <button class="btn" onclick="closeModal()">إلغاء</button>`);
 }
@@ -1032,7 +1074,10 @@ function renderStDet(id){
             <div class="prec">${p.receipt||'—'}</div>
             ${p.note?'<div class="pnote">'+esc(p.note)+'</div>':''}
           </div>
-          <button class="btn bd bsm" onclick="delPay('student','${id}','${p.id}');renderStDet('${id}')">حذف</button>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <button class="btn bsm" onclick="editPay('student','${id}','${p.id}')">تعديل</button>
+            <button class="btn bd bsm" onclick="delPay('student','${id}','${p.id}');renderStDet('${id}')">حذف</button>
+          </div>
         </div>`).join('')}
     </div>
 
@@ -1069,7 +1114,16 @@ function markSemPaid(id,sem){
   const s=db.students[id];if(!s)return;
   const semAmt=s.semester||s.annual/2||0;
   if(!semAmt)return al('pw-al','المبلغ الفصلي غير محدد');
-  s.payments.push({id:genId(),amount:semAmt,date:new Date().toISOString().split('T')[0],receipt:'',note:'مدفوع مسبقاً',semester:sem,prefilled:true});
+  // Calculate already paid for this semester (real payments only)
+  const alreadyPaid=( s.payments||[]).filter(p=>p.semester==sem&&!p.prefilled).reduce((a,p)=>a+p.amount,0);
+  const remaining=semAmt-alreadyPaid;
+  if(remaining<=0){
+    // Already fully paid — just close it
+    if(sem===1)s.sem1Closed=true;else s.sem2Closed=true;
+    saveDB();renderStDet(id);return;
+  }
+  // Add only the remaining amount as prefilled
+  s.payments.push({id:genId(),amount:remaining,date:new Date().toISOString().split('T')[0],receipt:'',note:'مدفوع مسبقاً',semester:sem,prefilled:true});
   if(sem===1)s.sem1Closed=true;else s.sem2Closed=true;
   saveDB();renderStDet(id);
 }
@@ -1099,6 +1153,48 @@ function saveStEdit(id){
 function delSt(id){
   if(!confirm('حذف الطالب نهائياً؟'))return;
   delete db.students[id];saveDB();TAB('students');
+}
+function editPay(type,eid,pid){
+  const src=type==='student'?db.students:type==='school'?db.schools:db.centers;
+  const e=src[eid];if(!e)return;
+  const p=(e.payments||[]).find(x=>x.id===pid);if(!p)return;
+  showModal('تعديل الدفعة',`
+    <div class="fg fg2">
+      <div class="f"><label>المبلغ (د.أ)</label><input type="number" id="ep-amt" value="${p.amount}" min="0"/></div>
+      <div class="f"><label>التاريخ</label><input type="date" id="ep-date" value="${p.date}"/></div>
+    </div>
+    <div class="fg fg2">
+      <div class="f"><label>رمز الدفتر</label><select id="ep-rbook">
+        <option value="">—</option>
+        ${['A','B','C','D','E','F','G','H'].map(l=>'<option value="'+l+'"'+(p.receipt&&p.receipt.startsWith(l+'-')?'selected':'')+'>'+l+'</option>').join('')}
+      </select></div>
+      <div class="f"><label>رقم الوصل</label><input id="ep-rnum" value="${p.receipt&&p.receipt.includes('-')?p.receipt.split('-')[1]:p.receipt||''}"/></div>
+    </div>
+    <div class="f" style="margin-bottom:8px"><label>ملاحظة</label><textarea id="ep-note">${esc(p.note||'')}</textarea></div>
+    <div class="f"><label>الفصل</label>
+      <div class="seg">
+        <button class="sb ${p.semester!=2?'on':''}" id="ep-s1" onclick="document.getElementById('ep-s1').classList.add('on');document.getElementById('ep-s2').classList.remove('on')">فصل أول</button>
+        <button class="sb ${p.semester==2?'on':''}" id="ep-s2" onclick="document.getElementById('ep-s2').classList.add('on');document.getElementById('ep-s1').classList.remove('on')">فصل ثاني</button>
+      </div>
+    </div>
+  `,`<button class="btn bp" onclick="saveEditPay('${type}','${eid}','${pid}')">حفظ التعديل</button>
+     <button class="btn" onclick="closeModal()">إلغاء</button>`);
+}
+function saveEditPay(type,eid,pid){
+  const src=type==='student'?db.students:type==='school'?db.schools:db.centers;
+  const e=src[eid];if(!e)return;
+  const p=(e.payments||[]).find(x=>x.id===pid);if(!p)return;
+  p.amount=parseFloat(document.getElementById('ep-amt').value)||p.amount;
+  p.date=document.getElementById('ep-date').value||p.date;
+  const rb=document.getElementById('ep-rbook').value;
+  const rn=document.getElementById('ep-rnum').value;
+  p.receipt=rb&&rn?rb+'-'+rn:rn||rb||p.receipt;
+  p.note=document.getElementById('ep-note').value.trim();
+  p.semester=document.getElementById('ep-s2').classList.contains('on')?2:1;
+  saveDB();closeModal();
+  if(type==='student')renderStDet(eid);
+  else if(type==='school')renderScDet(eid);
+  else renderCnDet(eid);
 }
 function delPay(type,eid,pid){
   const src=type==='student'?db.students:type==='school'?db.schools:db.centers;
