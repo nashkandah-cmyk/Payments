@@ -381,6 +381,7 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
             <option value="5">شهر 9 (مايو)</option>
             <option value="6">شهر 10 (يونيو)</option>
             <option value="7">شهر 11 (يوليو)</option>
+            <option value="8">شهر 12 (أغسطس)</option>
           </select>
         </div>
       </div>
@@ -1210,7 +1211,7 @@ function GS(n){
     const recFull=rb&&rn?rb+'-'+rn:rn||rb||'—';
     const note=v('pw-note');
     const monthVal=v('pw-month');
-    const monthNames={9:'شهر 1',10:'شهر 2',11:'شهر 3',12:'شهر 4',1:'شهر 5',2:'شهر 6',3:'شهر 7',4:'شهر 8',5:'شهر 9',6:'شهر 10',7:'شهر 11'};
+    const monthNames={9:'شهر 1',10:'شهر 2',11:'شهر 3',12:'شهر 4',1:'شهر 5',2:'شهر 6',3:'شهر 7',4:'شهر 8',5:'شهر 9',6:'شهر 10',7:'شهر 11',8:'شهر 12'};
     const monthLabel=monthVal?monthNames[parseInt(monthVal)]:'';
     let rp,tgt;
     if(PW.entType==='student'){rp=relPaid(PW.ent);tgt=target(PW.ent);}
@@ -1585,7 +1586,7 @@ function editPay(type,eid,pid){
   const e=src[eid];if(!e)return;
   const p=(e.payments||[]).find(x=>x.id===pid);if(!p)return;
   const isSchool=type==='school';
-  const monthOpts=[{v:9,l:'شهر 1'},{v:10,l:'شهر 2'},{v:11,l:'شهر 3'},{v:12,l:'شهر 4'},{v:1,l:'شهر 5'},{v:2,l:'شهر 6'},{v:3,l:'شهر 7'},{v:4,l:'شهر 8'},{v:5,l:'شهر 9'},{v:6,l:'شهر 10'},{v:7,l:'شهر 11'}];
+  const monthOpts=[{v:9,l:'شهر 1'},{v:10,l:'شهر 2'},{v:11,l:'شهر 3'},{v:12,l:'شهر 4'},{v:1,l:'شهر 5'},{v:2,l:'شهر 6'},{v:3,l:'شهر 7'},{v:4,l:'شهر 8'},{v:5,l:'شهر 9'},{v:6,l:'شهر 10'},{v:7,l:'شهر 11'},{v:8,l:'شهر 12'}];
   const monthSelHtml=isSchool?('<div class="f" style="margin-bottom:8px"><label>الشهر الدراسي</label><select id="ep-month"><option value="">— اختر الشهر —</option>'+monthOpts.map(m=>'<option value="'+m.v+'"'+(p.month==m.v?' selected':'')+'>'+m.l+'</option>').join('')+'</select></div>'):'';
   const semHtml=isSchool?'':('<div class="f"><label>الفصل</label><div class="seg"><button class="sb '+(p.semester!=2?'on':'')+'" id="ep-s1" onclick="document.getElementById(&quot;ep-s1&quot;).classList.add(&quot;on&quot;);document.getElementById(&quot;ep-s2&quot;).classList.remove(&quot;on&quot;)">فصل أول</button><button class="sb '+(p.semester==2?'on':'')+'" id="ep-s2" onclick="document.getElementById(&quot;ep-s2&quot;).classList.add(&quot;on&quot;);document.getElementById(&quot;ep-s1&quot;).classList.remove(&quot;on&quot;)">فصل ثاني</button></div></div>');
   showModal('تعديل الدفعة',
