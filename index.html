@@ -570,7 +570,10 @@ async function loadDB(){
   try{const r=localStorage.getItem(SK);if(r)db=JSON.parse(r);}catch(e){}
   ['students','groups','schools','centers'].forEach(k=>{if(!db[k])db[k]={};});
   let changed=false;
-  obj(db.students).forEach(s=>{if(autoCloseSem1(s))changed=true;});
+  obj(db.students).forEach(s=>{
+    if(autoBalance(s))changed=true;
+    if(autoCloseSem1(s))changed=true;
+  });
   if(changed)localStorage.setItem(SK,JSON.stringify(db));
   updHdr();popGrpSels();popGrpFilter();
   renderStudents('');
@@ -589,7 +592,10 @@ async function pullFromFirebase(){
         ['students','groups','schools','centers'].forEach(k=>{if(!remote[k])remote[k]={};});
         db=remote;
         let ch=false;
-        obj(db.students).forEach(s=>{if(autoCloseSem1(s))ch=true;});
+        obj(db.students).forEach(s=>{
+          if(autoBalance(s))ch=true;
+          if(autoCloseSem1(s))ch=true;
+        });
         localStorage.setItem(SK,JSON.stringify(db));
         if(ch)setTimeout(pushToFirebase,2000);
         updHdr();popGrpSels();popGrpFilter();
@@ -678,11 +684,56 @@ function autoCloseSem1(s){
   return false;
 }
 
+// ── AUTO BALANCE: fill sem1 from sem2 if sem1 incomplete ─────────────────────
+function autoBalance(s){
+  if(!s||s.enrollType==='sem1'||s.enrollType==='sem2')return false;
+  const semAmt=s.semester||s.annual/2||0;
+  if(!semAmt)return false;
+  const paid1=paidSem(s,1);
+  if(paid1>=semAmt)return false; // sem1 already complete
+  const short1=Math.round((semAmt-paid1)*100)/100;
+  // Check if sem2 has real (non-autoTransfer) payments
+  const sem2Real=(s.payments||[]).filter(p=>p.semester==2&&!p.autoTransfer&&!p.fromSplit);
+  const sem2Total=sem2Real.reduce((a,p)=>a+p.amount,0);
+  if(sem2Total<=0||short1<=0)return false;
+  // Move enough from sem2 to sem1 to complete it
+  const toMove=Math.min(short1,sem2Total);
+  // Find last sem2 real payment to split
+  const lastSem2=[...sem2Real].sort((a,b)=>a.date>b.date?-1:1)[0];
+  if(!lastSem2)return false;
+  if(lastSem2.amount<=toMove){
+    // Move entire payment to sem1
+    lastSem2.semester=1;
+    lastSem2.note=(lastSem2.note?lastSem2.note+' · ':'')+'(نُقلت لإكمال الفصل الأول تلقائياً)';
+    lastSem2.autoBalanced=true;
+  } else {
+    // Split: move toMove to sem1, keep rest in sem2
+    const origAmt=lastSem2.amount;
+    lastSem2.amount=Math.round((origAmt-toMove)*100)/100;
+    lastSem2.note=(lastSem2.note?lastSem2.note+' · ':'')+'(خُصم منها '+fmt(toMove)+' د.أ لإكمال الفصل الأول)';
+    s.payments.push({
+      id:genId(),
+      amount:toMove,
+      date:lastSem2.date,
+      receipt:lastSem2.receipt||'',
+      note:'نقل تلقائي '+fmt(toMove)+' د.أ من الفصل الثاني لإكمال الفصل الأول',
+      semester:1,
+      autoBalanced:true,
+      createdAt:new Date().toISOString()
+    });
+  }
+  // Close sem1 if now complete
+  autoCloseSem1(s);
+  return true;
+}
+
 // Force recalculate all students — run from UI
 function forceRecalc(){
   let count=0;
   let log=[];
   obj(db.students).forEach(s=>{
+    // First: balance sem2→sem1 if sem1 incomplete
+    if(autoBalance(s)){count++;log.push(s.name+': تم نقل من الفصل الثاني لإكمال الأول');}
     const semAmt=s.semester||s.annual/2||0;
     if(!semAmt||s.enrollType==='sem2')return;
     // Remove old autoTransfer payments first
