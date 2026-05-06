@@ -365,6 +365,25 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
           </div>
         </div>
       </div>
+      <div id="pw-month-wrap" style="display:none;margin-bottom:8px">
+        <div class="f">
+          <label>الشهر الدراسي</label>
+          <select id="pw-month">
+            <option value="">— اختر الشهر —</option>
+            <option value="9">سبتمبر (الشهر ١)</option>
+            <option value="10">أكتوبر (الشهر ٢)</option>
+            <option value="11">نوفمبر (الشهر ٣)</option>
+            <option value="12">ديسمبر (الشهر ٤)</option>
+            <option value="1">يناير (الشهر ٥)</option>
+            <option value="2">فبراير (الشهر ٦)</option>
+            <option value="3">مارس (الشهر ٧)</option>
+            <option value="4">أبريل (الشهر ٨)</option>
+            <option value="5">مايو (الشهر ٩)</option>
+            <option value="6">يونيو (الشهر ١٠)</option>
+            <option value="7">يوليو (الشهر ١١)</option>
+          </select>
+        </div>
+      </div>
       <div class="fg fg1" style="margin-bottom:8px">
         <div class="f"><label>ملاحظة على الدفعة (اختياري)</label><textarea id="pw-note" placeholder="أي ملاحظة..."></textarea></div>
       </div>
@@ -497,31 +516,30 @@ document.addEventListener('keydown',function(e){
   if(!el||el.tagName!=='INPUT')return;
   e.preventDefault();
   const enDigit=String(AR_DIGITS.indexOf(e.key));
-  if(el.type==='number'){
-    // For number inputs: manipulate value string directly
+  // For ALL inputs including number: use nativeInputValueSetter trick
+  const nativeSetter=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value')?.set;
+  if(el.type==='number'&&nativeSetter){
     const cur=el.value||'';
-    const start=el.selectionStart??cur.length;
-    const end=el.selectionEnd??cur.length;
+    const start=typeof el.selectionStart==='number'?el.selectionStart:cur.length;
+    const end=typeof el.selectionEnd==='number'?el.selectionEnd:cur.length;
     const next=cur.slice(0,start)+enDigit+cur.slice(end);
-    el.value=next;
+    nativeSetter.call(el,next);
+    el.dispatchEvent(new Event('input',{bubbles:true}));
+    el.dispatchEvent(new Event('change',{bubbles:true}));
     try{el.setSelectionRange(start+1,start+1);}catch(ex){}
   } else {
-    // For text inputs: insert at cursor
-    const start=el.selectionStart??el.value.length;
-    const end=el.selectionEnd??el.value.length;
+    const start=typeof el.selectionStart==='number'?el.selectionStart:el.value.length;
+    const end=typeof el.selectionEnd==='number'?el.selectionEnd:el.value.length;
     el.value=el.value.slice(0,start)+enDigit+el.value.slice(end);
     try{el.setSelectionRange(start+1,start+1);}catch(ex){}
+    el.dispatchEvent(new Event('input',{bubbles:true}));
   }
-  el.dispatchEvent(new Event('input',{bubbles:true}));
 },true);
-// Also handle paste with Arabic numbers
 document.addEventListener('input',function(e){
   const el=e.target;
-  if(!el||el.tagName!=='INPUT'||el.type==='checkbox'||el.type==='radio')return;
-  if(el.type!=='number'){
-    const v=el.value, c=arToEn(v);
-    if(v!==c){const p=el.selectionStart;el.value=c;try{el.setSelectionRange(p,p);}catch(ex){}}
-  }
+  if(!el||el.tagName!=='INPUT'||el.type==='number'||el.type==='checkbox'||el.type==='radio')return;
+  const v=el.value,c=arToEn(v);
+  if(v!==c){const p=el.selectionStart;el.value=c;try{el.setSelectionRange(p,p);}catch(ex){}}
 },{capture:true});
 // ── FIREBASE CONFIG ───────────────────────────────────────────────────────────
 const FB_CONFIG={
@@ -618,12 +636,21 @@ function saveDB(){
 
 async function pushToFirebase(){
   if(!initFirebase()){setSyncStatus('offline');return;}
+  // Save snapshot of current data
+  const snapshot=JSON.stringify(db);
   try{
-    await fbDb.collection('app').doc('data').set(db);
+    await fbDb.collection('app').doc('data').set(JSON.parse(snapshot));
     setSyncStatus('saved');
   }catch(e){
     setSyncStatus('error');
     console.warn('Firebase push error:',e);
+    // Retry once after 3 seconds
+    setTimeout(async()=>{
+      try{
+        await fbDb.collection('app').doc('data').set(JSON.parse(snapshot));
+        setSyncStatus('saved');
+      }catch(e2){setSyncStatus('error');}
+    },3000);
   }
 }
 function updHdr(){
@@ -1188,11 +1215,18 @@ function GS(n){
     setPSem(PW.sem);
   }
   if(n===3&&!v('pw-date'))set('pw-date',new Date().toISOString().split('T')[0]);
+  if(n===4){
+    const mw=document.getElementById('pw-month-wrap');
+    if(mw)mw.style.display=PW.entType==='school'?'block':'none';
+  }
   if(n===5&&PW.ent){
     const amt=parseFloat(v('pw-amt'))||0,date=v('pw-date');
     const rb=v('pw-rbook'),rn=v('pw-rnum');
     const recFull=rb&&rn?rb+'-'+rn:rn||rb||'—';
     const note=v('pw-note');
+    const monthVal=v('pw-month');
+    const monthNames={9:'سبتمبر',10:'أكتوبر',11:'نوفمبر',12:'ديسمبر',1:'يناير',2:'فبراير',3:'مارس',4:'أبريل',5:'مايو',6:'يونيو',7:'يوليو'};
+    const monthLabel=monthVal?monthNames[parseInt(monthVal)]:'';
     let rp,tgt;
     if(PW.entType==='student'){rp=relPaid(PW.ent);tgt=target(PW.ent);}
     else{rp=totalPaid(PW.ent);tgt=PW.ent.total||0;}
@@ -1202,6 +1236,7 @@ function GS(n){
       <div style="background:var(--sur2);border-radius:var(--rs);padding:12px;font-size:12px">
         ${rw('الجهة','<strong>'+esc(PW.ent.name)+'</strong>')}
         ${PW.entType==='student'?rw('الفصل',semLabel):''}
+        ${monthLabel?rw('الشهر','<span class="tag tb">'+monthLabel+'</span>'):''}
         ${rw('التاريخ',date)}
         ${rw('المبلغ','<strong style="color:var(--gr-t)">'+fmt(amt)+' د.أ</strong>')}
         ${recFull!=='—'?rw('رقم الوصل','<span style="font-family:monospace">'+recFull+'</span>'):''}
@@ -1220,6 +1255,8 @@ function savePay(){
   const note=v('pw-note').trim();
   const src=PW.entType==='student'?db.students:PW.entType==='school'?db.schools:db.centers;
   if(!src[PW.ent.id].payments)src[PW.ent.id].payments=[];
+  const savedMonth=v('pw-month')?parseInt(v('pw-month')):null;
+  const monthNamesS={9:'سبتمبر',10:'أكتوبر',11:'نوفمبر',12:'ديسمبر',1:'يناير',2:'فبراير',3:'مارس',4:'أبريل',5:'مايو',6:'يونيو',7:'يوليو'};
 
   let splitMsg='';
 
@@ -1244,8 +1281,9 @@ function savePay(){
       autoCloseSem1(s);
     }
   } else {
-    src[PW.ent.id].payments.push({id:genId(),amount,date,receipt,note,semester:PW.sem,createdAt:new Date().toISOString()});
-    // Auto-close sem1 check for student
+    const noteWithMonth=savedMonth&&monthNamesS[savedMonth]?
+      (note?note+' · ':'')+'شهر '+monthNamesS[savedMonth]:note;
+    src[PW.ent.id].payments.push({id:genId(),amount,date,receipt,note:noteWithMonth,semester:PW.sem,month:savedMonth||undefined,createdAt:new Date().toISOString()});
     if(PW.entType==='student')autoCloseSem1(src[PW.ent.id]);
   }
 
