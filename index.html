@@ -1547,7 +1547,21 @@ function delPay(type,eid,pid){
 function qPay(type,id){
   const src=type==='student'?db.students:type==='school'?db.schools:db.centers;
   PW.ent=src[id];PW.entType=type;
-  TAB('pay');setTimeout(()=>{set('pw-srch',PW.ent.name);setEnt(type);confEnt();},60);
+  // Reset pay flow state
+  PW.sem=1;
+  ['pw-amt','pw-rnum','pw-note'].forEach(x=>set(x,''));
+  set('pw-rbook','');
+  al('pw-al','','');
+  // Go directly to step 2 - skip student search
+  ['add','students','groups','schools','centers','reports','detail'].forEach(x=>{
+    const e=document.getElementById('tab-'+x);if(e)e.style.display='none';
+  });
+  document.querySelectorAll('.nb').forEach((b,i)=>b.classList.toggle('on',i===2));
+  document.getElementById('tab-pay').style.display='block';
+  // Show student name in search field then jump to step 2
+  set('pw-srch',PW.ent.name);
+  setEnt(type);
+  setTimeout(()=>GS(2),50);
 }
 
 function renderScDet(id){
