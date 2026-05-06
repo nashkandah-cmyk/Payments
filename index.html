@@ -1671,7 +1671,7 @@ function renderScDet(id){
         sorted.map(p=>`<div class="pi">
           <div class="pl">
             <div class="pa">+ ${fmt(p.amount)} د.أ</div>
-            ${p.month?'<span class="psem ps1">'+{9:'ش١',10:'ش٢',11:'ش٣',12:'ش٤',1:'ش٥',2:'ش٦',3:'ش٧',4:'ش٨',5:'ش٩',6:'ش١٠',7:'ش١١'}[p.month]+'</span>':''}
+            ${p.month?'<span class="psem ps1">'+({9:'شهر 1',10:'شهر 2',11:'شهر 3',12:'شهر 4',1:'شهر 5',2:'شهر 6',3:'شهر 7',4:'شهر 8',5:'شهر 9',6:'شهر 10',7:'شهر 11',8:'شهر 12'}[p.month]||'')+'</span>':''}
           </div>
           <div class="pm"><div>${p.date}</div><div class="prec">${p.receipt||'—'}</div>${p.note?'<div class="pnote">'+esc(p.note)+'</div>':''}</div>
           <div style="display:flex;flex-direction:column;gap:4px">
