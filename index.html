@@ -1109,21 +1109,30 @@ function GS(n){
       </div>`;
     }
     document.getElementById('pw2-info').innerHTML=info;
-    // Auto-select sem2 if sem1 is complete
-    if(PW.entType==='student'&&sem1Complete(PW.ent)){
-      PW.sem=2;
-      // Disable sem1 button
+    // Auto-select sem2 if sem1 is complete — run check fresh each time
+    if(PW.entType==='student'){
+      // Always re-run autoCloseSem1 to ensure flag is up to date
+      autoCloseSem1(PW.ent);
+      const s1done=sem1Complete(PW.ent);
       const s1b=document.getElementById('sem1-btn');
       const s2b=document.getElementById('sem2-btn');
-      if(s1b){s1b.disabled=true;s1b.style.opacity='0.4';s1b.title='الفصل الأول مكتمل';}
-      if(s2b){s2b.disabled=false;s2b.style.opacity='';}
       const sw=document.getElementById('sem-warn');
-      if(sw)sw.innerHTML='<span style="color:var(--gr-t)">✓ الفصل الأول مكتمل — الدفعة ستضاف للفصل الثاني تلقائياً</span>';
+      if(s1done){
+        PW.sem=2;
+        if(s1b){s1b.disabled=true;s1b.style.opacity='0.35';s1b.title='الفصل الأول مكتمل';}
+        if(s2b){s2b.disabled=false;s2b.style.opacity='1';}
+        if(sw)sw.innerHTML='<span style="color:var(--gr-t)">✓ الفصل الأول مكتمل — الدفعة للفصل الثاني تلقائياً</span>';
+      } else {
+        if(s1b){s1b.disabled=false;s1b.style.opacity='1';s1b.removeAttribute('title');}
+        if(s2b){s2b.disabled=false;s2b.style.opacity='1';}
+        if(sw)sw.innerHTML='';
+      }
     } else {
+      // Schools / Centers — no semester restriction
       const s1b=document.getElementById('sem1-btn');
       const s2b=document.getElementById('sem2-btn');
-      if(s1b){s1b.disabled=false;s1b.style.opacity='';}
-      if(s2b){s2b.disabled=false;s2b.style.opacity='';}
+      if(s1b){s1b.disabled=false;s1b.style.opacity='1';}
+      if(s2b){s2b.disabled=false;s2b.style.opacity='1';}
     }
     setPSem(PW.sem);
   }
