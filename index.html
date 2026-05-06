@@ -478,6 +478,8 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
   </div>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 'use strict';
@@ -521,11 +523,25 @@ document.addEventListener('input',function(e){
     if(v!==c){const p=el.selectionStart;el.value=c;try{el.setSelectionRange(p,p);}catch(ex){}}
   }
 },{capture:true});
-const GAS_URL='https://script.google.com/macros/s/AKfycbzT7rGxYOkkEjqEa5BOxoQA8ffn4b6f4lN-8c8KEXcB59ggn3CqHBjMaQPAZf6O5ooU/exec';
+// ── FIREBASE CONFIG ───────────────────────────────────────────────────────────
+const FB_CONFIG={
+  apiKey:'AIzaSyCngrtjF93_ol1THE31gFVe4UDEfqrNliA',
+  authDomain:'students-payments-management.firebaseapp.com',
+  projectId:'students-payments-management',
+  appId:'1:517078518765:web:2c3971e960c037af3035e4'
+};
+let fbApp,fbDb;
+function initFirebase(){
+  if(typeof firebase==='undefined')return false;
+  if(!fbApp){fbApp=firebase.initializeApp(FB_CONFIG);}
+  if(!fbDb){fbDb=firebase.firestore();}
+  return true;
+}
+
 let db={students:{},groups:{},schools:{},centers:{}};
 let PW={ent:null,entType:'student',sem:1,enroll:'both'};
 let stEnroll='both', sfStatus='all';
-let syncTimer=null, syncing=false;
+let syncTimer=null;
 
 // ── SYNC UI ───────────────────────────────────────────────────────────────────
 function setSyncStatus(st){
@@ -538,83 +554,70 @@ function setSyncStatus(st){
   }
   const states={
     syncing:{bg:'var(--bl-bg)',c:'var(--bl-t)',b:'var(--bl-b)',t:'🔄 جاري المزامنة...'},
-    saved:  {bg:'var(--gr-bg)',c:'var(--gr-t)',b:'var(--gr-b)',t:'✓ محفوظ على Drive'},
+    saved:  {bg:'var(--gr-bg)',c:'var(--gr-t)',b:'var(--gr-b)',t:'✓ محفوظ على Firebase'},
     error:  {bg:'var(--rd-bg)',c:'var(--rd-t)',b:'var(--rd-b)',t:'⚠ خطأ في المزامنة'},
     offline:{bg:'var(--am-bg)',c:'var(--am-t)',b:'var(--am-b)',t:'📴 محفوظ محلياً'},
   };
   const s=states[st]||states.offline;
   el.style.background=s.bg;el.style.color=s.c;el.style.borderColor=s.b;el.textContent=s.t;
-  if(st==='saved')setTimeout(()=>el.style.opacity='0',3000);
+  if(st==='saved')setTimeout(()=>{el.style.opacity='0';},3000);
   else el.style.opacity='1';
 }
 
 // ── DB ────────────────────────────────────────────────────────────────────────
 async function loadDB(){
+  // Load local first for instant UI
   try{const r=localStorage.getItem(SK);if(r)db=JSON.parse(r);}catch(e){}
   ['students','groups','schools','centers'].forEach(k=>{if(!db[k])db[k]={};});
-  // Auto-close sem1 for existing students
   let changed=false;
   obj(db.students).forEach(s=>{if(autoCloseSem1(s))changed=true;});
   if(changed)localStorage.setItem(SK,JSON.stringify(db));
   updHdr();popGrpSels();popGrpFilter();
-  await pullFromSheets();
+  renderStudents('');
+  // Then sync with Firebase
+  await pullFromFirebase();
 }
 
-async function pullFromSheets(){
+async function pullFromFirebase(){
   setSyncStatus('syncing');
+  if(!initFirebase()){setSyncStatus('offline');return;}
   try{
-    const res=await fetch(GAS_URL+'?t='+Date.now());
-    const text=await res.text();
-    if(text&&text.trim().startsWith('{')){
-      const remote=JSON.parse(text);
-      if(remote&&typeof remote==='object'&&Object.keys(remote).length>0){
+    const doc=await fbDb.collection('app').doc('data').get();
+    if(doc.exists){
+      const remote=doc.data();
+      if(remote&&typeof remote==='object'){
         ['students','groups','schools','centers'].forEach(k=>{if(!remote[k])remote[k]={};});
         db=remote;
-        // Auto-close sem1 for all students after loading remote data
         let ch=false;
         obj(db.students).forEach(s=>{if(autoCloseSem1(s))ch=true;});
         localStorage.setItem(SK,JSON.stringify(db));
-        if(ch)setTimeout(pushToSheets,2000);// push back if we auto-closed any sem1
+        if(ch)setTimeout(pushToFirebase,2000);
         updHdr();popGrpSels();popGrpFilter();
         renderStudents('');
       }
     }
     setSyncStatus('saved');
-  }catch(e){setSyncStatus('offline');console.warn('Pull error:',e);}
+  }catch(e){setSyncStatus('offline');console.warn('Firebase pull error:',e);}
 }
+
+async function pullFromSheets(){await pullFromFirebase();}
 
 function saveDB(){
   localStorage.setItem(SK,JSON.stringify(db));
   updHdr();
   if(syncTimer)clearTimeout(syncTimer);
   setSyncStatus('syncing');
-  syncTimer=setTimeout(pushToSheets,1500);
+  syncTimer=setTimeout(pushToFirebase,1500);
 }
 
-async function pushToSheets(){
-  const payload=JSON.stringify(db);
-  const encoded=encodeURIComponent(payload);
+async function pushToFirebase(){
+  if(!initFirebase()){setSyncStatus('offline');return;}
   try{
-    if(encoded.length<6000){
-      // Small data: use GET (no CORS)
-      const res=await fetch(GAS_URL+'?data='+encoded);
-      const txt=await res.text();
-      setSyncStatus(txt==='ok'||txt.includes('ok')?'saved':'error');
-    } else {
-      // Large data: use POST without Content-Type (avoids CORS preflight)
-      const res=await fetch(GAS_URL,{
-        method:'POST',
-        body:payload
-      });
-      const txt=await res.text();
-      setSyncStatus(txt.includes('ok')||res.ok?'saved':'error');
-    }
+    await fbDb.collection('app').doc('data').set(db);
+    setSyncStatus('saved');
   }catch(e){
-    // Last resort: no-cors POST
-    try{
-      await fetch(GAS_URL,{method:'POST',mode:'no-cors',body:payload});
-      setSyncStatus('saved');
-    }catch(e2){setSyncStatus('error');}
+    setSyncStatus('error');
+    console.warn('Firebase push error:',e);
   }
 }
 function updHdr(){
