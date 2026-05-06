@@ -227,9 +227,9 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
       </div>
     </div>
     <div class="fg fg3">
-      <div class="f"><label>المبلغ السنوي (د.أ)</label><input type="number" id="st-ann" placeholder="0" min="0" oninput="calcStSem()"/></div>
-      <div class="f"><label>المبلغ الفصلي</label><input type="number" id="st-sem" placeholder="تلقائي" min="0"/></div>
-      <div class="f"><label>المستهدف</label><input type="number" id="st-tgt" placeholder="بحسب الفصول" readonly/></div>
+      <div class="f"><label>المبلغ السنوي (د.أ)</label><input type="text" inputmode="decimal" id="st-ann" placeholder="0" min="0" oninput="calcStSem()"/></div>
+      <div class="f"><label>المبلغ الفصلي</label><input type="text" inputmode="decimal" id="st-sem" placeholder="تلقائي" min="0"/></div>
+      <div class="f"><label>المستهدف</label><input type="text" inputmode="decimal" id="st-tgt" placeholder="بحسب الفصول" readonly/></div>
     </div>
     <div class="fg fg1">
       <div class="f"><label>ملاحظات</label><input id="st-notes" placeholder="اختياري"/></div>
@@ -241,7 +241,7 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
     </div>
     <div id="st-plan-fields" style="display:none;background:var(--sur2);border-radius:var(--rs);padding:12px;margin-bottom:10px">
       <div class="fg fg3">
-        <div class="f"><label>عدد الدفعات</label><input type="number" id="st-plan-cnt" value="4" min="1" max="24"/></div>
+        <div class="f"><label>عدد الدفعات</label><input type="text" inputmode="numeric" id="st-plan-cnt" value="4" min="1" max="24"/></div>
         <div class="f"><label>تاريخ أول دفعة</label><input type="date" id="st-plan-start"/></div>
         <div class="f"><label>الفصل</label>
           <div class="seg">
@@ -282,12 +282,12 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
     <div class="fg fg4">
       <div class="f"><label>اسم المجموعة</label><input id="g-name" placeholder="مثال: A1"/></div>
       <div class="f"><label>الجيل (سنة الميلاد)</label><input type="number" id="g-gen" placeholder="2010" min="1990" max="2025"/></div>
-      <div class="f"><label>عدد الأفراد</label><input type="number" id="g-mem" placeholder="0" min="1" oninput="calcGrp()"/></div>
-      <div class="f"><label>المبلغ السنوي (د.أ)</label><input type="number" id="g-ann" placeholder="0" min="0" oninput="calcGrp()"/></div>
+      <div class="f"><label>عدد الأفراد</label><input type="text" inputmode="decimal" id="g-mem" placeholder="0" min="1" oninput="calcGrp()"/></div>
+      <div class="f"><label>المبلغ السنوي (د.أ)</label><input type="text" inputmode="decimal" id="g-ann" placeholder="0" min="0" oninput="calcGrp()"/></div>
     </div>
     <div class="fg fg2" style="margin-bottom:10px">
-      <div class="f"><label>الفصلي (يُحسب)</label><input type="number" id="g-sem" placeholder="0"/></div>
-      <div class="f"><label>نصيب كل فرد سنوياً</label><input type="number" id="g-pp" readonly placeholder="يُحسب"/></div>
+      <div class="f"><label>الفصلي (يُحسب)</label><input type="text" inputmode="decimal" id="g-sem" placeholder="0"/></div>
+      <div class="f"><label>نصيب كل فرد سنوياً</label><input type="text" inputmode="decimal" id="g-pp" readonly placeholder="يُحسب"/></div>
     </div>
     <button class="btn bp" onclick="addGroup()">حفظ المجموعة</button>
   </div>
@@ -356,7 +356,7 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
     <div id="pw4" style="display:none">
       <div class="ct">تفاصيل الدفعة</div>
       <div class="fg fg2">
-        <div class="f"><label>المبلغ (د.أ)</label><input type="number" id="pw-amt" placeholder="0" min="0" oninput="updAfter()"/></div>
+        <div class="f"><label>المبلغ (د.أ)</label><input type="text" inputmode="decimal" id="pw-amt" placeholder="0" min="0" oninput="updAfter()"/></div>
         <div class="f">
           <label>رقم الوصل (رمز + رقم)</label>
           <div class="rec-wrap">
@@ -417,7 +417,7 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
       <div class="f"><label>الشعب المتفق عليها</label><input id="sc-classes" placeholder="مثال: 3 شعب"/></div>
     </div>
     <div class="fg fg2" style="margin-bottom:10px">
-      <div class="f"><label>المبلغ الإجمالي المتفق عليه (د.أ)</label><input type="number" id="sc-total" placeholder="0" min="0"/></div>
+      <div class="f"><label>المبلغ الإجمالي المتفق عليه (د.أ)</label><input type="text" inputmode="decimal" id="sc-total" placeholder="0" min="0"/></div>
       <div class="f"><label>ملاحظات</label><input id="sc-notes" placeholder="اختياري"/></div>
     </div>
     <button class="btn bp" onclick="addSchool()">حفظ المدرسة</button>
@@ -434,11 +434,11 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
     <div id="cn-al"></div>
     <div class="fg fg2">
       <div class="f"><label>اسم المركز</label><input id="cn-name" placeholder="اسم المركز"/></div>
-      <div class="f"><label>عدد الطلاب</label><input type="number" id="cn-cnt" placeholder="0" min="0" oninput="calcCn()"/></div>
+      <div class="f"><label>عدد الطلاب</label><input type="text" inputmode="decimal" id="cn-cnt" placeholder="0" min="0" oninput="calcCn()"/></div>
     </div>
     <div class="fg fg3" style="margin-bottom:10px">
-      <div class="f"><label>المبلغ الإجمالي (د.أ)</label><input type="number" id="cn-total" placeholder="0" min="0" oninput="calcCn()"/></div>
-      <div class="f"><label>المبلغ المفرد لكل طالب</label><input type="number" id="cn-per" placeholder="يُحسب" readonly/></div>
+      <div class="f"><label>المبلغ الإجمالي (د.أ)</label><input type="text" inputmode="decimal" id="cn-total" placeholder="0" min="0" oninput="calcCn()"/></div>
+      <div class="f"><label>المبلغ المفرد لكل طالب</label><input type="text" inputmode="decimal" id="cn-per" placeholder="يُحسب" readonly/></div>
       <div class="f"><label>ملاحظات</label><input id="cn-notes" placeholder="اختياري"/></div>
     </div>
     <button class="btn bp" onclick="addCenter()">حفظ المركز</button>
@@ -510,32 +510,16 @@ function arToEn(str){
   return String(str).replace(/[٠١٢٣٤٥٦٧٨٩]/g,d=>AR_DIGITS.indexOf(d));
 }
 // Intercept keydown to convert Arabic digits before browser validates number inputs
-// Convert number inputs to text type visually but store as number
-// Use beforeinput for maximum compatibility
-document.addEventListener('beforeinput',function(e){
-  if(!e.data)return;
-  const converted=arToEn(e.data);
-  if(converted===e.data)return;// no Arabic digits
-  e.preventDefault();
+// Simple Arabic digit converter - works for all text inputs
+document.addEventListener('input',function(e){
   const el=e.target;
-  if(!el)return;
-  const start=el.selectionStart??el.value.length;
-  const end=el.selectionEnd??el.value.length;
-  el.value=el.value.slice(0,start)+converted+el.value.slice(end);
-  try{el.setSelectionRange(start+converted.length,start+converted.length);}catch(ex){}
-  el.dispatchEvent(new Event('input',{bubbles:true}));
-},true);
-// Fallback for browsers that don't support beforeinput well
-document.addEventListener('keydown',function(e){
-  if(!AR_DIGITS.includes(e.key))return;
-  e.preventDefault();
-  const el=e.target;if(!el||el.tagName!=='INPUT')return;
-  const digit=String(AR_DIGITS.indexOf(e.key));
-  const s=el.selectionStart??el.value.length;
-  const en=el.selectionEnd??el.value.length;
-  el.value=el.value.slice(0,s)+digit+el.value.slice(en);
-  try{el.setSelectionRange(s+1,s+1);}catch(ex){}
-  el.dispatchEvent(new Event('input',{bubbles:true}));
+  if(!el||el.tagName!=='INPUT'||el.type==='checkbox'||el.type==='radio'||el.type==='date')return;
+  const v=el.value,c=arToEn(v);
+  if(v!==c){
+    const p=el.selectionStart;
+    el.value=c;
+    try{el.setSelectionRange(p,p);}catch(ex){}
+  }
 },true);
 // ── FIREBASE CONFIG ───────────────────────────────────────────────────────────
 const FB_CONFIG={
@@ -1055,8 +1039,8 @@ function showGrpEdit(id){
   const g=db.groups[id];if(!g)return;
   showModal('تعديل مجموعة '+g.name,`
     <div class="fg fg2">
-      <div class="f"><label>العدد الجديد</label><input type="number" id="modal-mem" value="${g.members}" min="1"/></div>
-      <div class="f"><label>المبلغ السنوي الجديد</label><input type="number" id="modal-ann" value="${g.annual}" min="0"/></div>
+      <div class="f"><label>العدد الجديد</label><input type="text" inputmode="decimal" id="modal-mem" value="${g.members}" min="1"/></div>
+      <div class="f"><label>المبلغ السنوي الجديد</label><input type="text" inputmode="decimal" id="modal-ann" value="${g.annual}" min="0"/></div>
     </div>
   `,`<button class="btn bp" onclick="applyGrpChange('${id}')">تطبيق التغيير</button>
      <button class="btn" onclick="closeModal()">إلغاء</button>`);
@@ -1462,8 +1446,8 @@ function renderStDet(id){
         </div>
       </div>
       <div class="fg fg2">
-        <div class="f"><label>المبلغ السنوي</label><input type="number" id="e-ann" value="${s.annual}" oninput="set('e-sem',((parseFloat(this.value)||0)/2).toFixed(2))"/></div>
-        <div class="f"><label>المبلغ الفصلي</label><input type="number" id="e-sem" value="${s.semester}"/></div>
+        <div class="f"><label>المبلغ السنوي</label><input type="text" inputmode="decimal" id="e-ann" value="${s.annual}" oninput="set('e-sem',((parseFloat(this.value)||0)/2).toFixed(2))"/></div>
+        <div class="f"><label>المبلغ الفصلي</label><input type="text" inputmode="decimal" id="e-sem" value="${s.semester}"/></div>
       </div>
       <div class="fg fg1" style="margin-bottom:10px">
         <div class="f"><label>ملاحظات</label><input id="e-notes" value="${esc(s.notes||'')}"/></div>
@@ -1511,7 +1495,7 @@ function toggleWithdrawn(id){
     <div id="wd-custom-wrap" style="display:none;background:var(--sur2);border-radius:var(--rs);padding:11px;margin-bottom:10px">
       <div class="f">
         <label>المبلغ المستحق عليه (د.أ)</label>
-        <input type="number" id="wd-custom-amt" placeholder="أدخل المبلغ الفعلي المستحق" min="0"/>
+        <input type="text" inputmode="decimal" id="wd-custom-amt" placeholder="أدخل المبلغ الفعلي المستحق" min="0"/>
       </div>
     </div>
     <div class="fg fg2" style="margin-bottom:0">
@@ -1600,39 +1584,37 @@ function editPay(type,eid,pid){
   const src=type==='student'?db.students:type==='school'?db.schools:db.centers;
   const e=src[eid];if(!e)return;
   const p=(e.payments||[]).find(x=>x.id===pid);if(!p)return;
-  showModal('تعديل الدفعة',`
-    <div class="fg fg2">
-      <div class="f"><label>المبلغ (د.أ)</label><input type="number" id="ep-amt" value="${p.amount}" min="0"/></div>
-      <div class="f"><label>التاريخ</label><input type="date" id="ep-date" value="${p.date}"/></div>
-    </div>
-    <div class="fg fg2">
-      <div class="f"><label>رمز الدفتر</label><select id="ep-rbook">
-        <option value="">—</option>
-        ${['A','B','C','D','E','F','G','H'].map(l=>'<option value="'+l+'"'+(p.receipt&&p.receipt.startsWith(l+'-')?'selected':'')+'>'+l+'</option>').join('')}
-      </select></div>
-      <div class="f"><label>رقم الوصل</label><input id="ep-rnum" value="${p.receipt&&p.receipt.includes('-')?p.receipt.split('-')[1]:p.receipt||''}"/></div>
-    </div>
-    <div class="f" style="margin-bottom:8px"><label>ملاحظة</label><textarea id="ep-note">${esc(p.note||'')}</textarea></div>
-    <div class="f"><label>الفصل</label>
-      <div class="seg">
-        <button class="sb ${p.semester!=2?'on':''}" id="ep-s1" onclick="document.getElementById('ep-s1').classList.add('on');document.getElementById('ep-s2').classList.remove('on')">فصل أول</button>
-        <button class="sb ${p.semester==2?'on':''}" id="ep-s2" onclick="document.getElementById('ep-s2').classList.add('on');document.getElementById('ep-s1').classList.remove('on')">فصل ثاني</button>
-      </div>
-    </div>
-  `,`<button class="btn bp" onclick="saveEditPay('${type}','${eid}','${pid}')">حفظ التعديل</button>
-     <button class="btn" onclick="closeModal()">إلغاء</button>`);
+  const isSchool=type==='school';
+  const monthOpts=[{v:9,l:'شهر 1'},{v:10,l:'شهر 2'},{v:11,l:'شهر 3'},{v:12,l:'شهر 4'},{v:1,l:'شهر 5'},{v:2,l:'شهر 6'},{v:3,l:'شهر 7'},{v:4,l:'شهر 8'},{v:5,l:'شهر 9'},{v:6,l:'شهر 10'},{v:7,l:'شهر 11'}];
+  const monthSelHtml=isSchool?('<div class="f" style="margin-bottom:8px"><label>الشهر الدراسي</label><select id="ep-month"><option value="">— اختر الشهر —</option>'+monthOpts.map(m=>'<option value="'+m.v+'"'+(p.month==m.v?' selected':'')+'>'+m.l+'</option>').join('')+'</select></div>'):'';
+  const semHtml=isSchool?'':('<div class="f"><label>الفصل</label><div class="seg"><button class="sb '+(p.semester!=2?'on':'')+'" id="ep-s1" onclick="document.getElementById(&quot;ep-s1&quot;).classList.add(&quot;on&quot;);document.getElementById(&quot;ep-s2&quot;).classList.remove(&quot;on&quot;)">فصل أول</button><button class="sb '+(p.semester==2?'on':'')+'" id="ep-s2" onclick="document.getElementById(&quot;ep-s2&quot;).classList.add(&quot;on&quot;);document.getElementById(&quot;ep-s1&quot;).classList.remove(&quot;on&quot;)">فصل ثاني</button></div></div>');
+  showModal('تعديل الدفعة',
+    '<div class="fg fg2">'+
+    '<div class="f"><label>المبلغ (د.أ)</label><input type="text" inputmode="decimal" id="ep-amt" value="'+p.amount+'"/></div>'+
+    '<div class="f"><label>التاريخ</label><input type="date" id="ep-date" value="'+p.date+'"/></div></div>'+
+    '<div class="fg fg2">'+
+    '<div class="f"><label>رمز الدفتر</label><select id="ep-rbook"><option value="">—</option>'+
+    ['A','B','C','D','E','F','G','H'].map(l=>'<option value="'+l+'"'+(p.receipt&&p.receipt.startsWith(l+'-')?' selected':'')+'>'+l+'</option>').join('')+
+    '</select></div>'+
+    '<div class="f"><label>رقم الوصل</label><input id="ep-rnum" value="'+(p.receipt&&p.receipt.includes('-')?p.receipt.split('-')[1]:p.receipt||'')+'"/></div></div>'+
+    monthSelHtml+
+    '<div class="f" style="margin-bottom:8px"><label>ملاحظة</label><textarea id="ep-note">'+esc(p.note||'')+'</textarea></div>'+
+    semHtml,
+    '<button class="btn bp" onclick="saveEditPay(&quot;'+type+'&quot;,&quot;'+eid+'&quot;,&quot;'+pid+'&quot;)">حفظ التعديل</button> <button class="btn" onclick="closeModal()">إلغاء</button>');
 }
 function saveEditPay(type,eid,pid){
   const src=type==='student'?db.students:type==='school'?db.schools:db.centers;
   const e=src[eid];if(!e)return;
   const p=(e.payments||[]).find(x=>x.id===pid);if(!p)return;
-  p.amount=parseFloat(document.getElementById('ep-amt').value)||p.amount;
+  p.amount=parseFloat(arToEn(document.getElementById('ep-amt')?.value||''))||p.amount;
   p.date=document.getElementById('ep-date').value||p.date;
   const rb=document.getElementById('ep-rbook').value;
   const rn=document.getElementById('ep-rnum').value;
   p.receipt=rb&&rn?rb+'-'+rn:rn||rb||p.receipt;
   p.note=document.getElementById('ep-note').value.trim();
-  p.semester=document.getElementById('ep-s2').classList.contains('on')?2:1;
+  if(type!=='school')p.semester=document.getElementById('ep-s2')?.classList.contains('on')?2:1;
+  const epMonth=document.getElementById('ep-month');
+  if(epMonth&&epMonth.value)p.month=parseInt(epMonth.value);
   saveDB();closeModal();
   if(type==='student')renderStDet(eid);
   else if(type==='school')renderScDet(eid);
@@ -1741,8 +1723,8 @@ function renderCnDet(id){
     <div class="card">
       <div class="ct">تعديل المبلغ (خصم / إضافة)</div>
       <div class="fg fg2" style="margin-bottom:9px">
-        <div class="f"><label>المبلغ المعدّل (د.أ)</label><input type="number" id="cn-e-tot" value="${tgt}"/></div>
-        <div class="f"><label>عدد الطلاب</label><input type="number" id="cn-e-cnt" value="${c.studentCount}" oninput=""/></div>
+        <div class="f"><label>المبلغ المعدّل (د.أ)</label><input type="text" inputmode="decimal" id="cn-e-tot" value="${tgt}"/></div>
+        <div class="f"><label>عدد الطلاب</label><input type="text" inputmode="decimal" id="cn-e-cnt" value="${c.studentCount}" oninput=""/></div>
       </div>
       <button class="btn bp bsm" onclick="saveCnEdit('${id}')">تطبيق</button>
     </div>
@@ -2092,7 +2074,7 @@ function showInstPlan(sid){
   showModal('جدول الدفعات — '+s.name,`
     <div class="al al-i" style="margin-bottom:12px">المبلغ المستهدف: <strong>${fmt(target(s))} د.أ</strong></div>
     <div class="fg fg3">
-      <div class="f"><label>عدد الدفعات</label><input type="number" id="ip-cnt" value="${plan.count||4}" min="1" max="24" oninput="previewInst('${sid}')"/></div>
+      <div class="f"><label>عدد الدفعات</label><input type="text" inputmode="numeric" id="ip-cnt" value="${plan.count||4}" min="1" max="24" oninput="previewInst('${sid}')"/></div>
       <div class="f"><label>تاريخ أول دفعة</label><input type="date" id="ip-start" value="${plan.startDate||new Date().toISOString().split('T')[0]}" onchange="previewInst('${sid}')"/></div>
       <div class="f"><label>الفصل</label>
         <div class="seg">
