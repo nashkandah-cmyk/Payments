@@ -370,17 +370,17 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
           <label>الشهر الدراسي</label>
           <select id="pw-month">
             <option value="">— اختر الشهر —</option>
-            <option value="9">سبتمبر (الشهر ١)</option>
-            <option value="10">أكتوبر (الشهر ٢)</option>
-            <option value="11">نوفمبر (الشهر ٣)</option>
-            <option value="12">ديسمبر (الشهر ٤)</option>
-            <option value="1">يناير (الشهر ٥)</option>
-            <option value="2">فبراير (الشهر ٦)</option>
-            <option value="3">مارس (الشهر ٧)</option>
-            <option value="4">أبريل (الشهر ٨)</option>
-            <option value="5">مايو (الشهر ٩)</option>
-            <option value="6">يونيو (الشهر ١٠)</option>
-            <option value="7">يوليو (الشهر ١١)</option>
+            <option value="9">شهر 1 (سبتمبر)</option>
+            <option value="10">شهر 2 (أكتوبر)</option>
+            <option value="11">شهر 3 (نوفمبر)</option>
+            <option value="12">شهر 4 (ديسمبر)</option>
+            <option value="1">شهر 5 (يناير)</option>
+            <option value="2">شهر 6 (فبراير)</option>
+            <option value="3">شهر 7 (مارس)</option>
+            <option value="4">شهر 8 (أبريل)</option>
+            <option value="5">شهر 9 (مايو)</option>
+            <option value="6">شهر 10 (يونيو)</option>
+            <option value="7">شهر 11 (يوليو)</option>
           </select>
         </div>
       </div>
@@ -510,37 +510,33 @@ function arToEn(str){
   return String(str).replace(/[٠١٢٣٤٥٦٧٨٩]/g,d=>AR_DIGITS.indexOf(d));
 }
 // Intercept keydown to convert Arabic digits before browser validates number inputs
+// Convert number inputs to text type visually but store as number
+// Use beforeinput for maximum compatibility
+document.addEventListener('beforeinput',function(e){
+  if(!e.data)return;
+  const converted=arToEn(e.data);
+  if(converted===e.data)return;// no Arabic digits
+  e.preventDefault();
+  const el=e.target;
+  if(!el)return;
+  const start=el.selectionStart??el.value.length;
+  const end=el.selectionEnd??el.value.length;
+  el.value=el.value.slice(0,start)+converted+el.value.slice(end);
+  try{el.setSelectionRange(start+converted.length,start+converted.length);}catch(ex){}
+  el.dispatchEvent(new Event('input',{bubbles:true}));
+},true);
+// Fallback for browsers that don't support beforeinput well
 document.addEventListener('keydown',function(e){
   if(!AR_DIGITS.includes(e.key))return;
-  const el=e.target;
-  if(!el||el.tagName!=='INPUT')return;
   e.preventDefault();
-  const enDigit=String(AR_DIGITS.indexOf(e.key));
-  // For ALL inputs including number: use nativeInputValueSetter trick
-  const nativeSetter=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value')?.set;
-  if(el.type==='number'&&nativeSetter){
-    const cur=el.value||'';
-    const start=typeof el.selectionStart==='number'?el.selectionStart:cur.length;
-    const end=typeof el.selectionEnd==='number'?el.selectionEnd:cur.length;
-    const next=cur.slice(0,start)+enDigit+cur.slice(end);
-    nativeSetter.call(el,next);
-    el.dispatchEvent(new Event('input',{bubbles:true}));
-    el.dispatchEvent(new Event('change',{bubbles:true}));
-    try{el.setSelectionRange(start+1,start+1);}catch(ex){}
-  } else {
-    const start=typeof el.selectionStart==='number'?el.selectionStart:el.value.length;
-    const end=typeof el.selectionEnd==='number'?el.selectionEnd:el.value.length;
-    el.value=el.value.slice(0,start)+enDigit+el.value.slice(end);
-    try{el.setSelectionRange(start+1,start+1);}catch(ex){}
-    el.dispatchEvent(new Event('input',{bubbles:true}));
-  }
+  const el=e.target;if(!el||el.tagName!=='INPUT')return;
+  const digit=String(AR_DIGITS.indexOf(e.key));
+  const s=el.selectionStart??el.value.length;
+  const en=el.selectionEnd??el.value.length;
+  el.value=el.value.slice(0,s)+digit+el.value.slice(en);
+  try{el.setSelectionRange(s+1,s+1);}catch(ex){}
+  el.dispatchEvent(new Event('input',{bubbles:true}));
 },true);
-document.addEventListener('input',function(e){
-  const el=e.target;
-  if(!el||el.tagName!=='INPUT'||el.type==='number'||el.type==='checkbox'||el.type==='radio')return;
-  const v=el.value,c=arToEn(v);
-  if(v!==c){const p=el.selectionStart;el.value=c;try{el.setSelectionRange(p,p);}catch(ex){}}
-},{capture:true});
 // ── FIREBASE CONFIG ───────────────────────────────────────────────────────────
 const FB_CONFIG={
   apiKey:'AIzaSyCngrtjF93_ol1THE31gFVe4UDEfqrNliA',
@@ -1218,6 +1214,11 @@ function GS(n){
   if(n===4){
     const mw=document.getElementById('pw-month-wrap');
     if(mw)mw.style.display=PW.entType==='school'?'block':'none';
+    if(PW.entType==='school'&&!v('pw-month')){
+      // Auto-detect current academic month
+      const m=new Date().getMonth()+1;
+      set('pw-month',String(m));
+    }
   }
   if(n===5&&PW.ent){
     const amt=parseFloat(v('pw-amt'))||0,date=v('pw-date');
@@ -1225,7 +1226,7 @@ function GS(n){
     const recFull=rb&&rn?rb+'-'+rn:rn||rb||'—';
     const note=v('pw-note');
     const monthVal=v('pw-month');
-    const monthNames={9:'سبتمبر',10:'أكتوبر',11:'نوفمبر',12:'ديسمبر',1:'يناير',2:'فبراير',3:'مارس',4:'أبريل',5:'مايو',6:'يونيو',7:'يوليو'};
+    const monthNames={9:'شهر 1',10:'شهر 2',11:'شهر 3',12:'شهر 4',1:'شهر 5',2:'شهر 6',3:'شهر 7',4:'شهر 8',5:'شهر 9',6:'شهر 10',7:'شهر 11'};
     const monthLabel=monthVal?monthNames[parseInt(monthVal)]:'';
     let rp,tgt;
     if(PW.entType==='student'){rp=relPaid(PW.ent);tgt=target(PW.ent);}
@@ -1685,9 +1686,15 @@ function renderScDet(id){
       </div>
       ${sorted.length===0?'<div class="empty"><div class="ei">💳</div>لا توجد دفعات</div>':
         sorted.map(p=>`<div class="pi">
-          <div class="pl"><div class="pa">+ ${fmt(p.amount)} د.أ</div></div>
+          <div class="pl">
+            <div class="pa">+ ${fmt(p.amount)} د.أ</div>
+            ${p.month?'<span class="psem ps1">'+{9:'ش١',10:'ش٢',11:'ش٣',12:'ش٤',1:'ش٥',2:'ش٦',3:'ش٧',4:'ش٨',5:'ش٩',6:'ش١٠',7:'ش١١'}[p.month]+'</span>':''}
+          </div>
           <div class="pm"><div>${p.date}</div><div class="prec">${p.receipt||'—'}</div>${p.note?'<div class="pnote">'+esc(p.note)+'</div>':''}</div>
-          <button class="btn bd bsm" onclick="delPay('school','${id}','${p.id}');renderScDet('${id}')">حذف</button>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <button class="btn bsm" onclick="editPay('school','${id}','${p.id}')">تعديل</button>
+            <button class="btn bd bsm" onclick="delPay('school','${id}','${p.id}');renderScDet('${id}')">حذف</button>
+          </div>
         </div>`).join('')}
     </div>
     <div class="card">
@@ -1748,7 +1755,10 @@ function renderCnDet(id){
         sorted.map(p=>`<div class="pi">
           <div class="pl"><div class="pa">+ ${fmt(p.amount)} د.أ</div></div>
           <div class="pm"><div>${p.date}</div><div class="prec">${p.receipt||'—'}</div>${p.note?'<div class="pnote">'+esc(p.note)+'</div>':''}</div>
-          <button class="btn bd bsm" onclick="delPay('center','${id}','${p.id}');renderCnDet('${id}')">حذف</button>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <button class="btn bsm" onclick="editPay('center','${id}','${p.id}')">تعديل</button>
+            <button class="btn bd bsm" onclick="delPay('center','${id}','${p.id}');renderCnDet('${id}')">حذف</button>
+          </div>
         </div>`).join('')}
     </div>
     <div class="card">
