@@ -652,22 +652,23 @@ function autoCloseSem1(s){
     if(!alreadyTransferred){
       const lastP=[...(s.payments||[])].filter(p=>p.semester==1&&!p.fromSplit&&!p.autoTransfer)
         .sort((a,b)=>a.date>b.date?-1:1)[0];
+      if(lastP&&lastP.amount>overflow){
+        const origAmt=lastP.amount;
+        lastP.amount=Math.round((lastP.amount-overflow)*100)/100;
+        lastP.note=(lastP.note?lastP.note+' · ':'')+'(أصل '+fmt(origAmt)+' — ترحيل '+fmt(overflow)+' للفصل الثاني)';
+        lastP.splitOverflow=overflow;
+      }
       s.payments.push({
         id:genId(),
         amount:overflow,
         date:lastP?.date||new Date().toISOString().split('T')[0],
         receipt:lastP?.receipt||'',
-        note:'ترحيل تلقائي '+fmt(overflow)+' د.أ من الفصل الأول للثاني',
+        note:'↪ ترحيل تلقائي '+fmt(overflow)+' د.أ من الفصل الأول',
         semester:2,
         fromSplit:true,
         autoTransfer:true,
         createdAt:new Date().toISOString()
       });
-      if(lastP){
-        lastP.splitOverflow=overflow;
-        if(!lastP.note||(lastP.note&&!lastP.note.includes('ترحيل')))
-          lastP.note=(lastP.note?(lastP.note+' · '):'')+'↪ تم ترحيل '+fmt(overflow)+' د.أ للفصل الثاني';
-      }
       return true;
     }
   }
@@ -681,32 +682,48 @@ function forceRecalc(){
   obj(db.students).forEach(s=>{
     const semAmt=s.semester||s.annual/2||0;
     if(!semAmt||s.enrollType==='sem2')return;
+    // Remove old autoTransfer payments first
+    s.payments=(s.payments||[]).filter(p=>!p.autoTransfer);
     const paid1=paidSem(s,1);
-    if(paid1<=semAmt)return;
+    if(paid1<=semAmt+0.009)return;
     // Has overflow
     const overflow=Math.round((paid1-semAmt)*100)/100;
     if(overflow<0.01)return;
-    // Remove old autoTransfer payments to recalculate clean
-    s.payments=(s.payments||[]).filter(p=>!p.autoTransfer);
-    // Find last real sem1 payment
-    const lastP=[...(s.payments||[])].filter(p=>p.semester==1&&!p.fromSplit)
-      .sort((a,b)=>a.date>b.date?-1:1)[0];
-    // Add overflow to sem2
-    s.payments.push({
-      id:genId(),
-      amount:overflow,
-      date:lastP?.date||new Date().toISOString().split('T')[0],
-      receipt:lastP?.receipt||'',
-      note:'↪ ترحيل تلقائي '+fmt(overflow)+' د.أ من الفصل الأول',
-      semester:2,
-      fromSplit:true,
-      autoTransfer:true,
-      createdAt:new Date().toISOString()
-    });
-    // Update note on last sem1 payment
-    if(lastP){
+    // Find the last sem1 payment that caused the overflow
+    const sem1Pays=[...(s.payments||[])].filter(p=>p.semester==1&&!p.fromSplit)
+      .sort((a,b)=>a.date>b.date?-1:1);
+    // Reduce the last sem1 payment by overflow amount, creating two entries
+    const lastP=sem1Pays[0];
+    if(lastP&&lastP.amount>overflow){
+      // Split the payment: reduce original, add new sem2 payment
+      const origAmt=lastP.amount;
+      lastP.amount=Math.round((lastP.amount-overflow)*100)/100;
+      lastP.note=(lastP.note?lastP.note+' · ':'')+'(أصل الدفعة '+fmt(origAmt)+' — تم ترحيل '+fmt(overflow)+' د.أ للفصل الثاني)';
       lastP.splitOverflow=overflow;
-      lastP.note=(lastP.note&&!lastP.note.includes('ترحيل')?lastP.note+' · ':'')+'↪ تم ترحيل '+fmt(overflow)+' د.أ للفصل الثاني';
+      s.payments.push({
+        id:genId(),
+        amount:overflow,
+        date:lastP.date,
+        receipt:lastP.receipt||'',
+        note:'↪ ترحيل من دفعة الفصل الأول بتاريخ '+lastP.date+' ('+fmt(origAmt)+' د.أ أصل الدفعة)',
+        semester:2,
+        fromSplit:true,
+        autoTransfer:true,
+        createdAt:new Date().toISOString()
+      });
+    } else {
+      // Can't split neatly - just add sem2 payment and mark as transfer
+      s.payments.push({
+        id:genId(),
+        amount:overflow,
+        date:lastP?.date||new Date().toISOString().split('T')[0],
+        receipt:lastP?.receipt||'',
+        note:'↪ ترحيل تلقائي '+fmt(overflow)+' د.أ من الفصل الأول',
+        semester:2,
+        fromSplit:true,
+        autoTransfer:true,
+        createdAt:new Date().toISOString()
+      });
     }
     s.sem1Closed=true;
     count++;
