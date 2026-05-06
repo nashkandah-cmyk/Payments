@@ -193,6 +193,7 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
     <div class="hdr-sub" id="hdr-sub">جاري التحميل...</div>
   </div>
   <button onclick="pullFromSheets()" class="btn bsm" title="تحديث من السحابة" style="font-size:16px;padding:5px 10px">🔄</button>
+  <button onclick="forceRecalc()" class="btn bsm ba" title="ترحيل الفوائض يدوياً" style="font-size:13px;padding:5px 10px">↪ ترحيل</button>
 </header>
 
 <nav>
@@ -638,36 +639,51 @@ function sem1Complete(s){
 }
 function autoCloseSem1(s){
   const semAmt=s.semester||s.annual/2||0;
-  if(!semAmt)return false;
+  if(!semAmt||s.enrollType==='sem2')return false;
   const paid1=paidSem(s,1);
-  if(!s.sem1Closed&&paid1>=semAmt){
-    s.sem1Closed=true;
-    // Check overflow — transfer excess to sem2 if not already done
-    const overflow=Math.round((paid1-semAmt)*100)/100;
-    if(overflow>0.005&&!s.overflowTransferred){
-      const lastP=[...(s.payments||[])].filter(p=>p.semester==1&&!p.fromSplit)
+  if(paid1<semAmt)return false;
+  // Close sem1
+  s.sem1Closed=true;
+  // Check overflow
+  const overflow=Math.round((paid1-semAmt)*100)/100;
+  if(overflow>0.01){
+    // Check if overflow already transferred (idempotent)
+    const alreadyTransferred=(s.payments||[]).some(p=>p.autoTransfer&&p.semester==2);
+    if(!alreadyTransferred){
+      const lastP=[...(s.payments||[])].filter(p=>p.semester==1&&!p.fromSplit&&!p.autoTransfer)
         .sort((a,b)=>a.date>b.date?-1:1)[0];
       s.payments.push({
         id:genId(),
         amount:overflow,
         date:lastP?.date||new Date().toISOString().split('T')[0],
         receipt:lastP?.receipt||'',
-        note:'ترحيل تلقائي من الفصل الأول — مبلغ زائد '+fmt(overflow)+' د.أ',
+        note:'ترحيل تلقائي '+fmt(overflow)+' د.أ من الفصل الأول للثاني',
         semester:2,
         fromSplit:true,
         autoTransfer:true,
         createdAt:new Date().toISOString()
       });
-      // Add note to the last sem1 payment
       if(lastP){
         lastP.splitOverflow=overflow;
-        lastP.note=(lastP.note?(lastP.note+' · '):'')+'تم ترحيل '+fmt(overflow)+' د.أ للفصل الثاني';
+        if(!lastP.note||(lastP.note&&!lastP.note.includes('ترحيل')))
+          lastP.note=(lastP.note?(lastP.note+' · '):'')+'↪ تم ترحيل '+fmt(overflow)+' د.أ للفصل الثاني';
       }
-      s.overflowTransferred=true;
+      return true;
     }
-    return true;
   }
   return false;
+}
+
+// Force recalculate all students — run from UI
+function forceRecalc(){
+  let count=0;
+  obj(db.students).forEach(s=>{
+    // Reset flags to allow re-check
+    const hadAuto=(s.payments||[]).some(p=>p.autoTransfer);
+    if(!hadAuto&&autoCloseSem1(s))count++;
+  });
+  if(count>0){saveDB();alert(count+' طالب تم ترحيل فائض فصلهم الأول للفصل الثاني');}
+  else{alert('لا يوجد فوائض جديدة للترحيل');}
 }
 function target(s){
   // Use custom withdrawal target if student is withdrawn and has one set
