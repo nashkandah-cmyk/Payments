@@ -677,13 +677,48 @@ function autoCloseSem1(s){
 // Force recalculate all students — run from UI
 function forceRecalc(){
   let count=0;
+  let log=[];
   obj(db.students).forEach(s=>{
-    // Reset flags to allow re-check
-    const hadAuto=(s.payments||[]).some(p=>p.autoTransfer);
-    if(!hadAuto&&autoCloseSem1(s))count++;
+    const semAmt=s.semester||s.annual/2||0;
+    if(!semAmt||s.enrollType==='sem2')return;
+    const paid1=paidSem(s,1);
+    if(paid1<=semAmt)return;
+    // Has overflow
+    const overflow=Math.round((paid1-semAmt)*100)/100;
+    if(overflow<0.01)return;
+    // Remove old autoTransfer payments to recalculate clean
+    s.payments=(s.payments||[]).filter(p=>!p.autoTransfer);
+    // Find last real sem1 payment
+    const lastP=[...(s.payments||[])].filter(p=>p.semester==1&&!p.fromSplit)
+      .sort((a,b)=>a.date>b.date?-1:1)[0];
+    // Add overflow to sem2
+    s.payments.push({
+      id:genId(),
+      amount:overflow,
+      date:lastP?.date||new Date().toISOString().split('T')[0],
+      receipt:lastP?.receipt||'',
+      note:'↪ ترحيل تلقائي '+fmt(overflow)+' د.أ من الفصل الأول',
+      semester:2,
+      fromSplit:true,
+      autoTransfer:true,
+      createdAt:new Date().toISOString()
+    });
+    // Update note on last sem1 payment
+    if(lastP){
+      lastP.splitOverflow=overflow;
+      lastP.note=(lastP.note&&!lastP.note.includes('ترحيل')?lastP.note+' · ':'')+'↪ تم ترحيل '+fmt(overflow)+' د.أ للفصل الثاني';
+    }
+    s.sem1Closed=true;
+    count++;
+    log.push(s.name+': ترحيل '+fmt(overflow)+' د.أ');
   });
-  if(count>0){saveDB();alert(count+' طالب تم ترحيل فائض فصلهم الأول للفصل الثاني');}
-  else{alert('لا يوجد فوائض جديدة للترحيل');}
+  if(count>0){
+    saveDB();
+    renderStudents('');
+    alert('✓ تم ترحيل الفوائض لـ '+count+' طالب:\n'+log.join('\n'));
+  } else {
+    alert('لا يوجد فوائض — كل الطلاب حساباتهم صحيحة');
+  }
 }
 function target(s){
   // Use custom withdrawal target if student is withdrawn and has one set
@@ -1402,8 +1437,9 @@ function markSemPaid(id,sem){
   const semAmt=s.semester||s.annual/2||0;
   if(!semAmt)return al('pw-al','المبلغ الفصلي غير محدد');
   // Calculate already paid for this semester (real payments only)
-  const alreadyPaid=( s.payments||[]).filter(p=>p.semester==sem&&!p.prefilled).reduce((a,p)=>a+p.amount,0);
-  const remaining=semAmt-alreadyPaid;
+  // Count all real payments for this semester (exclude prefilled marks but include autoTransfer transfers)
+  const alreadyPaid=(s.payments||[]).filter(p=>p.semester==sem&&!p.prefilled).reduce((a,p)=>a+p.amount,0);
+  const remaining=Math.round((semAmt-alreadyPaid)*100)/100;
   if(remaining<=0){
     // Already fully paid — just close it
     if(sem===1)s.sem1Closed=true;else s.sem2Closed=true;
