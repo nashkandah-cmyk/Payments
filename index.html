@@ -1247,8 +1247,13 @@ function GS(n){
   }
 }
 function savePay(){
+  // Always refresh entity reference from db
+  if(PW.entId){
+    const freshSrc=PW.entType==='student'?db.students:PW.entType==='school'?db.schools:db.centers;
+    if(freshSrc[PW.entId])PW.ent=freshSrc[PW.entId];
+  }
   if(!PW.ent)return;
-  const amount=parseFloat(v('pw-amt'))||0,date=v('pw-date');
+  const amount=parseFloat(arToEn(v('pw-amt')||''))||0,date=v('pw-date');
   if(!amount||!date)return;
   const rb=v('pw-rbook'),rn=v('pw-rnum');
   const receipt=rb&&rn?rb+'-'+rn:rn||rb||'';
@@ -1642,22 +1647,28 @@ function delPay(type,eid,pid){
 }
 function qPay(type,id){
   const src=type==='student'?db.students:type==='school'?db.schools:db.centers;
-  PW.ent=src[id];PW.entType=type;
-  // Reset pay flow state
+  if(!src[id])return;
+  // Store id separately so we can always look up fresh from db
+  PW.entId=id;
+  PW.ent=src[id];
+  PW.entType=type;
   PW.sem=1;
-  ['pw-amt','pw-rnum','pw-note'].forEach(x=>set(x,''));
+  // Reset all fields
+  ['pw-amt','pw-rnum','pw-note','pw-srch'].forEach(x=>set(x,''));
   set('pw-rbook','');
+  if(document.getElementById('pw-month'))set('pw-month','');
   al('pw-al','','');
-  // Go directly to step 2 - skip student search
-  ['add','students','groups','schools','centers','reports','detail'].forEach(x=>{
-    const e=document.getElementById('tab-'+x);if(e)e.style.display='none';
-  });
-  document.querySelectorAll('.nb').forEach((b,i)=>b.classList.toggle('on',i===2));
-  document.getElementById('tab-pay').style.display='block';
-  // Show student name in search field then jump to step 2
-  set('pw-srch',PW.ent.name);
+  // Navigate to pay tab
+  TAB('pay');
+  // Set entity and go to step 2
   setEnt(type);
-  setTimeout(()=>GS(2),50);
+  set('pw-srch',PW.ent.name);
+  setTimeout(()=>{
+    // Re-fetch fresh reference in case db was updated
+    const freshSrc=PW.entType==='student'?db.students:PW.entType==='school'?db.schools:db.centers;
+    PW.ent=freshSrc[PW.entId]||PW.ent;
+    GS(2);
+  },100);
 }
 
 function renderScDet(id){
@@ -1796,6 +1807,22 @@ function rptRange(t){
   buildRpt();
 }
 let rptView='summary';
+let rptSort={col:'',dir:1};
+function sortRpt(col){
+  if(rptSort.col===col)rptSort.dir*=-1;
+  else{rptSort.col=col;rptSort.dir=1;}
+  buildRpt();
+}
+function sortArr(arr,col,dir){
+  return [...arr].sort((a,b)=>{
+    const va=typeof a[col]==='string'?a[col].localeCompare(b[col],'ar'):((a[col]||0)-(b[col]||0));
+    return va*dir;
+  });
+}
+function thSort(col,label){
+  const arrow=rptSort.col===col?(rptSort.dir===1?' ↑':' ↓'):'';
+  return '<th style="cursor:pointer;user-select:none" onclick="sortRpt(&quot;'+col+'&quot;)">'+label+arrow+'</th>';
+}
 function setRptView(v){
   rptView=v;
   document.querySelectorAll('#tab-reports .br .btn').forEach(b=>{
@@ -1842,24 +1869,52 @@ function buildRpt(){
       tgt:gs.reduce((a,s)=>a+target(s),0),
       rem:gs.reduce((a,s)=>a+rem(s),0)};
   });
-  if(grpRows.length)html+=`<div class="card"><div class="ct">المجموعات</div>
-    <table class="tbl"><thead><tr><th>المجموعة</th><th>طلاب</th><th>محصّل (الفترة)</th><th>المستهدف</th><th>المتبقي</th></tr></thead>
-    <tbody>${grpRows.map(r=>`<tr><td><strong>${r.name}</strong></td><td>${r.cnt}</td><td style="color:var(--gr-t)">${fmt(r.paid)}</td><td>${fmt(r.tgt)}</td><td style="color:var(--${r.rem>0?'rd':'gr'}-t)">${fmt(r.rem)}</td></tr>`).join('')}</tbody></table></div>`;
+  if(grpRows.length){
+    const sortedGrp=rptSort.col?sortArr(grpRows,rptSort.col,rptSort.dir):grpRows;
+    html+=`<div class="card"><div class="ct">المجموعات</div>
+    <table class="tbl"><thead><tr>
+      ${thSort('name','المجموعة')}${thSort('cnt','طلاب')}${thSort('paid','محصّل (الفترة)')}${thSort('tgt','المستهدف')}${thSort('rem','المتبقي')}
+    </tr></thead>
+    <tbody>${sortedGrp.map(r=>`<tr><td><strong>${r.name}</strong></td><td>${r.cnt}</td><td style="color:var(--gr-t)">${fmt(r.paid)}</td><td>${fmt(r.tgt)}</td><td style="color:var(--${r.rem>0?'rd':'gr'}-t)">${fmt(r.rem)}</td></tr>`).join('')}</tbody></table></div>`;
+  }
 
-  if(students.length)html+=`<div class="card"><div class="ct">الطلاب</div>
-    <table class="tbl"><thead><tr><th>الطالب</th><th>المجموعة</th><th>الفصول</th><th>محصّل (الفترة)</th><th>المتبقي</th></tr></thead>
-    <tbody>${students.sort((a,b)=>a.name.localeCompare(b.name,'ar')).map(s=>{
-      const el={both:'فصلين',sem1:'ف١',sem2:'ف٢'}[s.enrollType||'both'];const r=rem(s);
-      return`<tr style="cursor:pointer" onclick="openDet('student','${s.id}')"><td><strong>${s.name}</strong></td><td>${s.groupName||'—'}</td><td>${el}</td><td style="color:var(--gr-t)">${fmt(paidInRange(s,d1,d2))}</td><td style="color:var(--${r>0?'rd':'gr'}-t)">${fmt(r)}</td></tr>`;
+  if(students.length){
+    const stRows=students.map(s=>({...s,_paid:paidInRange(s,d1,d2),_rem:rem(s),_tgt:target(s)}));
+    const sortedSt=rptSort.col==='name'?sortArr(stRows,'name',rptSort.dir):
+      rptSort.col==='groupName'?sortArr(stRows,'groupName',rptSort.dir):
+      rptSort.col==='_paid'?sortArr(stRows,'_paid',rptSort.dir):
+      rptSort.col==='_rem'?sortArr(stRows,'_rem',rptSort.dir):
+      rptSort.col==='_tgt'?sortArr(stRows,'_tgt',rptSort.dir):
+      stRows.sort((a,b)=>a.name.localeCompare(b.name,'ar'));
+    html+=`<div class="card"><div class="ct">الطلاب</div>
+    <table class="tbl"><thead><tr>
+      ${thSort('name','الطالب')}${thSort('groupName','المجموعة')}<th>الفصول</th>${thSort('_paid','محصّل (الفترة)')}${thSort('_rem','المتبقي')}
+    </tr></thead>
+    <tbody>${sortedSt.map(s=>{
+      const el={both:'فصلين',sem1:'ف١',sem2:'ف٢'}[s.enrollType||'both'];
+      return`<tr style="cursor:pointer" onclick="openDet('student','${s.id}')"><td><strong>${s.name}</strong></td><td>${s.groupName||'—'}</td><td>${el}</td><td style="color:var(--gr-t)">${fmt(s._paid)}</td><td style="color:var(--${s._rem>0?'rd':'gr'}-t)">${fmt(s._rem)}</td></tr>`;
     }).join('')}</tbody></table></div>`;
+  }
 
-  if(schools.length)html+=`<div class="card"><div class="ct">المدارس</div>
-    <table class="tbl"><thead><tr><th>المدرسة</th><th>الشعب</th><th>محصّل (الفترة)</th><th>المتفق عليه</th><th>المتبقي</th></tr></thead>
-    <tbody>${schools.map(s=>{const r=s.total-totalPaid(s);return`<tr style="cursor:pointer" onclick="openDet('school','${s.id}')"><td><strong>${s.name}</strong></td><td>${s.classes||'—'}</td><td style="color:var(--gr-t)">${fmt(paidInRange(s,d1,d2))}</td><td>${fmt(s.total)}</td><td style="color:var(--${r>0?'rd':'gr'}-t)">${fmt(r)}</td></tr>`;}).join('')}</tbody></table></div>`;
+  if(schools.length){
+    const scRows=schools.map(s=>({...s,_paid:paidInRange(s,d1,d2),_rem:s.total-totalPaid(s)}));
+    const sortedSc=rptSort.col==='name'?sortArr(scRows,'name',rptSort.dir):rptSort.col==='_paid'?sortArr(scRows,'_paid',rptSort.dir):rptSort.col==='total'?sortArr(scRows,'total',rptSort.dir):rptSort.col==='_rem'?sortArr(scRows,'_rem',rptSort.dir):scRows;
+    html+=`<div class="card"><div class="ct">المدارس</div>
+    <table class="tbl"><thead><tr>
+      ${thSort('name','المدرسة')}<th>الشعب</th>${thSort('_paid','محصّل (الفترة)')}${thSort('total','المتفق عليه')}${thSort('_rem','المتبقي')}
+    </tr></thead>
+    <tbody>${sortedSc.map(s=>`<tr style="cursor:pointer" onclick="openDet('school','${s.id}')"><td><strong>${s.name}</strong></td><td>${s.classes||'—'}</td><td style="color:var(--gr-t)">${fmt(s._paid)}</td><td>${fmt(s.total)}</td><td style="color:var(--${s._rem>0?'rd':'gr'}-t)">${fmt(s._rem)}</td></tr>`).join('')}</tbody></table></div>`;
+  }
 
-  if(centers.length)html+=`<div class="card"><div class="ct">المراكز</div>
-    <table class="tbl"><thead><tr><th>المركز</th><th>طلاب</th><th>محصّل (الفترة)</th><th>المطلوب</th><th>المتبقي</th></tr></thead>
-    <tbody>${centers.map(c=>{const tgt=c.customTotal||c.total||0,r=tgt-totalPaid(c);return`<tr style="cursor:pointer" onclick="openDet('center','${c.id}')"><td><strong>${c.name}</strong></td><td>${c.studentCount}</td><td style="color:var(--gr-t)">${fmt(paidInRange(c,d1,d2))}</td><td>${fmt(tgt)}</td><td style="color:var(--${r>0?'rd':'gr'}-t)">${fmt(r)}</td></tr>`;}).join('')}</tbody></table></div>`;
+  if(centers.length){
+    const cnRows=centers.map(c=>({...c,_tgt:c.customTotal||c.total||0,_paid:paidInRange(c,d1,d2),_rem:(c.customTotal||c.total||0)-totalPaid(c)}));
+    const sortedCn=rptSort.col==='name'?sortArr(cnRows,'name',rptSort.dir):rptSort.col==='studentCount'?sortArr(cnRows,'studentCount',rptSort.dir):rptSort.col==='_paid'?sortArr(cnRows,'_paid',rptSort.dir):rptSort.col==='_tgt'?sortArr(cnRows,'_tgt',rptSort.dir):rptSort.col==='_rem'?sortArr(cnRows,'_rem',rptSort.dir):cnRows;
+    html+=`<div class="card"><div class="ct">المراكز</div>
+    <table class="tbl"><thead><tr>
+      ${thSort('name','المركز')}${thSort('studentCount','طلاب')}${thSort('_paid','محصّل (الفترة)')}${thSort('_tgt','المطلوب')}${thSort('_rem','المتبقي')}
+    </tr></thead>
+    <tbody>${sortedCn.map(c=>`<tr style="cursor:pointer" onclick="openDet('center','${c.id}')"><td><strong>${c.name}</strong></td><td>${c.studentCount}</td><td style="color:var(--gr-t)">${fmt(c._paid)}</td><td>${fmt(c._tgt)}</td><td style="color:var(--${c._rem>0?'rd':'gr'}-t)">${fmt(c._rem)}</td></tr>`).join('')}</tbody></table></div>`;
+  }
 
   document.getElementById('rpt-out').innerHTML=html;
 }
