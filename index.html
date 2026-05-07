@@ -570,6 +570,7 @@ async function loadDB(){
   ['students','groups','schools','centers'].forEach(k=>{if(!db[k])db[k]={};});
   let changed=false;
   obj(db.students).forEach(s=>{
+    if(recoverMissingTransfers(s))changed=true;
     if(autoBalance(s))changed=true;
     if(autoCloseSem1(s))changed=true;
   });
@@ -592,6 +593,7 @@ async function pullFromFirebase(){
         db=remote;
         let ch=false;
         obj(db.students).forEach(s=>{
+          if(recoverMissingTransfers(s))ch=true;
           if(autoBalance(s))ch=true;
           if(autoCloseSem1(s))ch=true;
         });
@@ -674,6 +676,8 @@ function autoCloseSem1(s){
         lastP.amount=Math.round((lastP.amount-overflow)*100)/100;
         lastP.note=(lastP.note?lastP.note+' · ':'')+'(أصل '+fmt(origAmt)+' — ترحيل '+fmt(overflow)+' للفصل الثاني)';
         lastP.splitOverflow=overflow;
+        lastP.splitTo2=overflow; // marker for recovery
+        lastP.originalAmount=origAmt;
       }
       s.payments.push({
         id:genId(),
@@ -735,66 +739,76 @@ function autoBalance(s){
   return true;
 }
 
+// Recovery: re-create missing autoTransfer payments for already-split sem1 payments
+function recoverMissingTransfers(s){
+  const splitPays=(s.payments||[]).filter(p=>p.splitTo2&&p.semester==1);
+  let changed=false;
+  splitPays.forEach(sp=>{
+    const ov=sp.splitTo2;
+    const exists=(s.payments||[]).some(p=>p.autoTransfer&&p.semester==2&&Math.abs(p.amount-ov)<0.05);
+    if(!exists){
+      s.payments.push({
+        id:genId(),amount:ov,date:sp.date,receipt:sp.receipt||'',
+        note:'↪ ترحيل '+fmt(ov)+' د.أ من الفصل الأول (استعادة)',
+        semester:2,fromSplit:true,autoTransfer:true,
+        createdAt:new Date().toISOString()
+      });
+      changed=true;
+    }
+  });
+  return changed;
+}
+
 // Force recalculate all students — run from UI
 function forceRecalc(){
   let count=0;
   let log=[];
   obj(db.students).forEach(s=>{
-    // First: balance sem2→sem1 if sem1 incomplete
-    if(autoBalance(s)){count++;log.push(s.name+': تم نقل من الفصل الثاني لإكمال الأول');}
     const semAmt=s.semester||s.annual/2||0;
     if(!semAmt||s.enrollType==='sem2')return;
-    // Remove old autoTransfer payments first
+    // Step 1: Restore any previously reduced payments to original amounts
+    (s.payments||[]).forEach(p=>{
+      if(p.splitOverflow&&p.splitOverflow>0&&p.semester==1){
+        p.amount=Math.round((p.amount+p.splitOverflow)*100)/100;
+        delete p.splitOverflow;
+        if(p.note)p.note=p.note.replace(/ · ↪ تم ترحيل .*/,'').replace(/↪ تم ترحيل .*/,'').trim();
+      }
+    });
+    // Step 2: Remove all autoTransfer payments
     s.payments=(s.payments||[]).filter(p=>!p.autoTransfer);
+    // Step 3: Check overflow
     const paid1=paidSem(s,1);
-    if(paid1<=semAmt+0.009)return;
-    // Has overflow
+    if(paid1<=semAmt+0.009){
+      if(autoBalance(s)){count++;log.push(s.name+': نقل من ف٢ لإكمال ف١');}
+      autoCloseSem1(s);
+      return;
+    }
     const overflow=Math.round((paid1-semAmt)*100)/100;
     if(overflow<0.01)return;
-    // Find the last sem1 payment that caused the overflow
+    // Step 4: Split last sem1 payment
     const sem1Pays=[...(s.payments||[])].filter(p=>p.semester==1&&!p.fromSplit)
       .sort((a,b)=>a.date>b.date?-1:1);
-    // Reduce the last sem1 payment by overflow amount, creating two entries
     const lastP=sem1Pays[0];
     if(lastP&&lastP.amount>overflow){
-      // Split the payment: reduce original, add new sem2 payment
       const origAmt=lastP.amount;
       lastP.amount=Math.round((lastP.amount-overflow)*100)/100;
-      lastP.note=(lastP.note?lastP.note+' · ':'')+'(أصل الدفعة '+fmt(origAmt)+' — تم ترحيل '+fmt(overflow)+' د.أ للفصل الثاني)';
       lastP.splitOverflow=overflow;
-      s.payments.push({
-        id:genId(),
-        amount:overflow,
-        date:lastP.date,
-        receipt:lastP.receipt||'',
-        note:'↪ ترحيل من دفعة الفصل الأول بتاريخ '+lastP.date+' ('+fmt(origAmt)+' د.أ أصل الدفعة)',
-        semester:2,
-        fromSplit:true,
-        autoTransfer:true,
-        createdAt:new Date().toISOString()
-      });
-    } else {
-      // Can't split neatly - just add sem2 payment and mark as transfer
-      s.payments.push({
-        id:genId(),
-        amount:overflow,
-        date:lastP?.date||new Date().toISOString().split('T')[0],
-        receipt:lastP?.receipt||'',
+      lastP.note=(lastP.note?lastP.note+' · ':'')+'↪ ترحيل '+fmt(overflow)+' د.أ للفصل الثاني';
+      s.payments.push({id:genId(),amount:overflow,date:lastP.date,receipt:lastP.receipt||'',
+        note:'↪ ترحيل '+fmt(overflow)+' د.أ من دفعة '+lastP.date,
+        semester:2,fromSplit:true,autoTransfer:true,createdAt:new Date().toISOString()});
+    } else if(lastP){
+      s.payments.push({id:genId(),amount:overflow,date:lastP.date,receipt:'',
         note:'↪ ترحيل تلقائي '+fmt(overflow)+' د.أ من الفصل الأول',
-        semester:2,
-        fromSplit:true,
-        autoTransfer:true,
-        createdAt:new Date().toISOString()
-      });
+        semester:2,fromSplit:true,autoTransfer:true,createdAt:new Date().toISOString()});
     }
     s.sem1Closed=true;
     count++;
     log.push(s.name+': ترحيل '+fmt(overflow)+' د.أ');
   });
   if(count>0){
-    saveDB();
-    renderStudents('');
-    alert('✓ تم ترحيل الفوائض لـ '+count+' طالب:\n'+log.join('\n'));
+    saveDB();renderStudents('');
+    alert('تم معالجة '+count+' طالب:\n'+log.join('\n'));
   } else {
     alert('لا يوجد فوائض — كل الطلاب حساباتهم صحيحة');
   }
