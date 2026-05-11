@@ -210,8 +210,10 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
 <!-- ══════════════════════════════════════════════════════════════
      STUDENTS
 ══════════════════════════════════════════════════════════════ -->
-<div id="tab-students">
+<!-- Add Student Form (separate tab) -->
+<div id="tab-add-student" style="display:none">
   <div class="card">
+    <button class="btn bsm" onclick="TAB('students')" style="margin-bottom:11px">← رجوع للطلاب</button>
     <div class="ct">إضافة طالب جديد</div>
     <div id="st-al"></div>
     <div class="fg fg2">
@@ -227,8 +229,8 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
       </div>
     </div>
     <div class="fg fg3">
-      <div class="f"><label>المبلغ السنوي (د.أ)</label><input type="text" inputmode="decimal" id="st-ann" placeholder="0" min="0" oninput="calcStSem()"/></div>
-      <div class="f"><label>المبلغ الفصلي</label><input type="text" inputmode="decimal" id="st-sem" placeholder="تلقائي" min="0"/></div>
+      <div class="f"><label>المبلغ السنوي (د.أ)</label><input type="text" inputmode="decimal" id="st-ann" placeholder="0" oninput="calcStSem()"/></div>
+      <div class="f"><label>المبلغ الفصلي</label><input type="text" inputmode="decimal" id="st-sem" placeholder="تلقائي"/></div>
       <div class="f"><label>المستهدف</label><input type="text" inputmode="decimal" id="st-tgt" placeholder="بحسب الفصول" readonly/></div>
     </div>
     <div class="fg fg1">
@@ -241,7 +243,7 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
     </div>
     <div id="st-plan-fields" style="display:none;background:var(--sur2);border-radius:var(--rs);padding:12px;margin-bottom:10px">
       <div class="fg fg3">
-        <div class="f"><label>عدد الدفعات</label><input type="text" inputmode="numeric" id="st-plan-cnt" value="4" min="1" max="24"/></div>
+        <div class="f"><label>عدد الدفعات</label><input type="text" inputmode="numeric" id="st-plan-cnt" value="4"/></div>
         <div class="f"><label>تاريخ أول دفعة</label><input type="date" id="st-plan-start"/></div>
         <div class="f"><label>الفصل</label>
           <div class="seg">
@@ -253,9 +255,12 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
     </div>
     <button class="btn bp" onclick="addStudent()">حفظ الطالب</button>
   </div>
+</div>
 
-  <div style="display:flex;gap:7px;margin-bottom:9px;flex-wrap:wrap">
-    <input placeholder="بحث بالاسم..." oninput="renderStudents(this.value)" style="flex:1;min-width:120px"/>
+<!-- Students List -->
+<div id="tab-students">
+  <div style="display:flex;gap:7px;margin-bottom:9px;flex-wrap:wrap;align-items:center">
+    <input id="st-srch" placeholder="بحث بالاسم..." oninput="renderStudents(this.value);alphaActive=null;" style="flex:1;min-width:120px"/>
     <select id="sf-grp" onchange="renderStudents()" style="min-width:110px"><option value="">كل المجموعات</option></select>
     <select id="sf-enr" onchange="renderStudents()" style="min-width:110px">
       <option value="">كل الفصول</option>
@@ -263,7 +268,9 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
       <option value="sem1">فصل أول فقط</option>
       <option value="sem2">فصل ثاني فقط</option>
     </select>
+    <button class="btn bp bsm" onclick="TAB('add-student')">+ إضافة طالب</button>
   </div>
+  <div id="alpha-bar" style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:8px"></div>
   <div class="fc">
     <button class="chip on" onclick="setSF(this,'all')">الكل</button>
     <button class="chip" onclick="setSF(this,'done')">سدّد بالكامل</button>
@@ -849,12 +856,14 @@ function closeModal(e){if(!e||e.target.id==='modal')document.getElementById('mod
 
 // ── TABS ──────────────────────────────────────────────────────────────────────
 function TAB(t){
-  ['students','groups','pay','schools','centers','reports','detail'].forEach(x=>{
+  ['students','add-student','groups','pay','schools','centers','reports','detail'].forEach(x=>{
     const e=document.getElementById('tab-'+x);if(e)e.style.display='none';
   });
-  document.querySelectorAll('.nb').forEach((b,i)=>b.classList.toggle('on',['students','groups','pay','schools','centers','reports'].indexOf(t)===i));
-  document.getElementById('tab-'+t).style.display='block';
+  const mainTabs=['students','groups','pay','schools','centers','reports'];
+  document.querySelectorAll('.nb').forEach((b,i)=>b.classList.toggle('on',mainTabs.indexOf(t)===i));
+  const el=document.getElementById('tab-'+t);if(el)el.style.display='block';
   if(t==='students'){popGrpFilter();renderStudents('');}
+  if(t==='add-student'){popGrpSels();}
   if(t==='groups')renderGroups();
   if(t==='schools')renderSchools();
   if(t==='centers')renderCenters();
@@ -926,19 +935,38 @@ function addStudent(){
   if(document.getElementById('st-make-plan'))document.getElementById('st-make-plan').checked=false;
   if(document.getElementById('st-plan-fields'))document.getElementById('st-plan-fields').style.display='none';
   renderStudents('');
+  TAB('students');
 }
 let sfFilt='all';
 function setSF(btn,f){sfFilt=f;document.querySelectorAll('.chip').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderStudents('');}
+let alphaActive=null;
+function renderAlphaBar(){
+  const bar=document.getElementById('alpha-bar');
+  if(!bar)return;
+  const letters=[...'ابتثجحخدذرزسشصضطظعغفقكلمنهوي'];
+  const names=obj(db.students).map(s=>s.name.trim()[0]);
+  const available=new Set(names);
+  bar.innerHTML=letters.map(l=>`<button class="chip${alphaActive===l?' on':''}" style="min-width:28px;padding:3px 6px;font-size:12px" onclick="setAlpha('${l}')">${l}</button>`).join('')+
+    `<button class="chip${alphaActive===null&&!document.getElementById('st-srch')?.value?' on':''}" style="font-size:12px" onclick="setAlpha(null)">الكل</button>`;
+}
+function setAlpha(l){
+  alphaActive=l;
+  if(document.getElementById('st-srch'))document.getElementById('st-srch').value='';
+  renderAlphaBar();
+  renderStudents('');
+}
 function renderStudents(q){
-  if(q===undefined)q=document.querySelector('#tab-students input')?.value||'';
+  if(q===undefined)q=document.getElementById('st-srch')?.value||'';
   const gid=v('sf-grp'),enr=v('sf-enr'),box=document.getElementById('st-list');
   let all=obj(db.students);
+  if(alphaActive)all=all.filter(s=>s.name.trim()[0]===alphaActive);
   if(q)all=all.filter(s=>s.name.toLowerCase().includes(q.toLowerCase())||(s.groupName||'').toLowerCase().includes(q.toLowerCase()));
   if(gid)all=all.filter(s=>s.groupId===gid);
   if(enr)all=all.filter(s=>s.enrollType===enr);
   if(sfFilt==='done')all=all.filter(s=>rem(s)<=0);
   if(sfFilt==='pending')all=all.filter(s=>rem(s)>0);
   all.sort((a,b)=>a.name.localeCompare(b.name,'ar'));
+  renderAlphaBar();
   if(!all.length){box.innerHTML='<div class="empty"><div class="ei">👤</div>لا يوجد طلاب</div>';return;}
   const eTag={both:'<span class="tag tb">فصلين</span>',sem1:'<span class="tag tb">ف١</span>',sem2:'<span class="tag ta">ف٢</span>'};
   box.innerHTML=all.map(s=>{
@@ -1036,7 +1064,7 @@ function renderGrpDet(id){
           const html='<div class="item" onclick="openDet('+JSON.stringify('student')+','+JSON.stringify(s.id)+')">'+
             '<div class="irow">'+
               '<div>'+
-                '<div class="iname">'+s.name+' <span class="tag tb">'+eTag+'</span></div>'+
+                '<div class="iname" style="cursor:pointer" onclick="openDet(&quot;student&quot;,&quot;'+s.id+'&quot;)">'+s.name+' <span class="tag tb">'+eTag+'</span></div>'+
                 '<div class="isub">'+(s.payments||[]).length+' دفعة · مدفوع '+fmt(rp)+' د.أ</div>'+
               '</div>'+
               '<div class="iright">'+
@@ -1382,7 +1410,7 @@ function renderStDet(id){
   const p1=paidSem(s,1),p2=paidSem(s,2);
   const ini=s.name.split(' ').slice(0,2).map(w=>w[0]).join('');
   const eL={both:'فصل أول + ثاني',sem1:'فصل أول فقط',sem2:'فصل ثاني فقط'}[s.enrollType||'both'];
-  const sorted=[...(s.payments||[])].sort((a,b)=>b.date<a.date?-1:1);
+  const sorted=[...(s.payments||[])].sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
 
   document.getElementById('det-body').innerHTML=`
     <div class="card">
@@ -1674,7 +1702,7 @@ function qPay(type,id){
 function renderScDet(id){
   const s=db.schools[id];if(!s)return;
   const rp=totalPaid(s),r=s.total-rp,pct=pctBar(rp,s.total),bc=barColor(pct);
-  const sorted=[...(s.payments||[])].sort((a,b)=>b.date<a.date?-1:1);
+  const sorted=[...(s.payments||[])].sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
   document.getElementById('det-body').innerHTML=`
     <div class="card">
       <button class="btn bsm" onclick="TAB('schools')" style="margin-bottom:11px">← رجوع</button>
