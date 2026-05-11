@@ -2612,7 +2612,32 @@ function exportCard(type,eid){
     </div>
     <div style="font-size:12px;color:#888;text-align:center;margin-bottom:4px">${pctNum}% مسدّد</div>
     ${progHtml}
-    <div style="margin-top:16px;padding-top:10px;border-top:1px solid #f0f0f0;font-size:10px;color:#ccc;text-align:center">إدارة الدفعات المالية</div>
+    ${(()=>{
+      const pays=(e.payments||[]).filter(p=>!p.autoTransfer&&!p.prefilled).sort((a,b)=>a.date>b.date?-1:1);
+      const last=pays[0];
+      if(r<=0){
+        return '<div style="margin-top:14px;padding:12px;background:#f0fdf4;border-radius:10px;border:1.5px solid #86efac;text-align:center">'+
+          '<div style="font-size:20px;margin-bottom:4px">✅</div>'+
+          '<div style="font-size:14px;font-weight:700;color:#16a34a">أنهى جميع الدفعات</div>'+
+          '<div style="font-size:11px;color:#86efac;margin-top:2px">شكراً لالتزامك</div>'+
+        '</div>';
+      }
+      if(!last)return '';
+      const sem=last.semester==2?'فصل ثاني':'فصل أول';
+      return '<div style="margin-top:14px;padding:12px;background:#f8f8f8;border-radius:10px">'+
+        '<div style="font-size:11px;color:#aaa;margin-bottom:6px">آخر دفعة</div>'+
+        '<div style="display:flex;justify-content:space-between;align-items:center">'+
+          '<div style="font-size:18px;font-weight:700;color:#111">'+fmt(last.amount)+' <span style="font-size:12px;color:#aaa">د.أ</span></div>'+
+          '<div style="text-align:left">'+
+            '<div style="font-size:12px;color:#555">'+last.date+'</div>'+
+            '<div style="font-size:11px;color:#aaa">'+sem+'</div>'+
+          '</div>'+
+        '</div>'+
+        (last.receipt?'<div style="font-size:11px;color:#aaa;margin-top:4px">وصل: '+last.receipt+'</div>':'')+
+        (last.note?'<div style="font-size:11px;color:#666;margin-top:4px;font-style:italic">'+last.note+'</div>':'')+
+      '</div>';
+    })()}
+    <div style="margin-top:12px;padding-top:10px;border-top:1px solid #f0f0f0;font-size:10px;color:#ccc;text-align:center">إدارة الدفعات المالية</div>
   `;
   document.body.appendChild(card);
 
