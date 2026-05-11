@@ -296,6 +296,16 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
       <div class="f"><label>الفصلي (يُحسب)</label><input type="text" inputmode="decimal" id="g-sem" placeholder="0"/></div>
       <div class="f"><label>نصيب كل فرد سنوياً</label><input type="text" inputmode="decimal" id="g-pp" readonly placeholder="يُحسب"/></div>
     </div>
+    <div class="dvd"></div>
+    <div class="fg fg3">
+      <div class="f"><label>عدد الوحدات الكلي</label><input type="text" inputmode="numeric" id="g-units" placeholder="10"/></div>
+      <div class="f"><label>دروس بكل وحدة</label><input type="text" inputmode="numeric" id="g-lessons" placeholder="7"/></div>
+      <div class="f"><label>الوحدة الحالية</label><input type="text" inputmode="numeric" id="g-curunit" placeholder="1"/></div>
+    </div>
+    <div class="fg fg2">
+      <div class="f"><label>الدرس الحالي</label><input type="text" inputmode="numeric" id="g-curlesson" placeholder="1"/></div>
+      <div class="f"><label>ملاحظة على التقدم (اختياري)</label><input id="g-progress-note" placeholder="مثال: أنهينا الاختبار الأول"/></div>
+    </div>
     <button class="btn bp" onclick="addGroup()">حفظ المجموعة</button>
   </div>
   <div id="grp-list"></div>
@@ -1004,10 +1014,13 @@ function addGroup(){
   const name=v('g-name').trim();
   if(!name)return al('grp-al','أدخل اسم المجموعة');
   const id=genId();
-  db.groups[id]={id,name,generation:v('g-gen').trim(),members:parseInt(v('g-mem'))||0,annual:parseFloat(v('g-ann'))||0,semester:parseFloat(v('g-sem'))||0};
+  db.groups[id]={id,name,generation:v('g-gen').trim(),members:parseInt(v('g-mem'))||0,annual:parseFloat(v('g-ann'))||0,semester:parseFloat(v('g-sem'))||0,
+    totalUnits:parseInt(v('g-units'))||10,lessonsPerUnit:parseInt(v('g-lessons'))||7,
+    currentUnit:parseInt(v('g-curunit'))||1,currentLesson:parseInt(v('g-curlesson'))||1,
+    progressNote:v('g-progress-note').trim()};
   saveDB();popGrpSels();popGrpFilter();renderGroups();
   al('grp-al','تم حفظ المجموعة '+name,'s');
-  ['g-name','g-gen','g-mem','g-ann','g-sem','g-pp'].forEach(x=>set(x,''));
+  ['g-name','g-gen','g-mem','g-ann','g-sem','g-pp','g-units','g-lessons','g-curunit','g-curlesson','g-progress-note'].forEach(x=>set(x,''));
 }
 function renderGroups(){
   const box=document.getElementById('grp-list');
@@ -1082,8 +1095,19 @@ function showGrpEdit(id){
   const g=db.groups[id];if(!g)return;
   showModal('تعديل مجموعة '+g.name,`
     <div class="fg fg2">
-      <div class="f"><label>العدد الجديد</label><input type="text" inputmode="decimal" id="modal-mem" value="${g.members}" min="1"/></div>
-      <div class="f"><label>المبلغ السنوي الجديد</label><input type="text" inputmode="decimal" id="modal-ann" value="${g.annual}" min="0"/></div>
+      <div class="f"><label>عدد الأفراد</label><input type="text" inputmode="decimal" id="modal-mem" value="${g.members}"/></div>
+      <div class="f"><label>المبلغ السنوي</label><input type="text" inputmode="decimal" id="modal-ann" value="${g.annual}"/></div>
+    </div>
+    <div class="dvd"></div>
+    <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--tx2)">تقدم المادة</div>
+    <div class="fg fg3">
+      <div class="f"><label>عدد الوحدات</label><input type="text" inputmode="numeric" id="modal-units" value="${g.totalUnits||10}"/></div>
+      <div class="f"><label>دروس/وحدة</label><input type="text" inputmode="numeric" id="modal-lessons" value="${g.lessonsPerUnit||7}"/></div>
+      <div class="f"><label>الوحدة الحالية</label><input type="text" inputmode="numeric" id="modal-curunit" value="${g.currentUnit||1}"/></div>
+    </div>
+    <div class="fg fg2">
+      <div class="f"><label>الدرس الحالي</label><input type="text" inputmode="numeric" id="modal-curlesson" value="${g.currentLesson||1}"/></div>
+      <div class="f"><label>ملاحظة التقدم</label><input id="modal-pnote" value="${esc(g.progressNote||'')}"/></div>
     </div>
   `,`<button class="btn bp" onclick="applyGrpChange('${id}')">تطبيق التغيير</button>
      <button class="btn" onclick="closeModal()">إلغاء</button>`);
@@ -1092,6 +1116,11 @@ function applyGrpChange(gid){
   const g=db.groups[gid];if(!g)return;
   const newMem=parseInt(v('modal-mem'))||g.members;
   const newAnn=parseFloat(v('modal-ann'))||g.annual;
+  g.totalUnits=parseInt(v('modal-units'))||g.totalUnits||10;
+  g.lessonsPerUnit=parseInt(v('modal-lessons'))||g.lessonsPerUnit||7;
+  g.currentUnit=parseInt(v('modal-curunit'))||g.currentUnit||1;
+  g.currentLesson=parseInt(v('modal-curlesson'))||g.currentLesson||1;
+  g.progressNote=document.getElementById('modal-pnote')?.value?.trim()||g.progressNote||'';
   const oldPP=g.members>0?g.annual/g.members:g.annual;
   const newPP=newMem>0?newAnn/newMem:newAnn;
   const diff=newPP-oldPP;
@@ -1501,6 +1530,7 @@ function renderStDet(id){
         <div class="f"><label>ملاحظات</label><input id="e-notes" value="${esc(s.notes||'')}"/></div>
       </div>
       <div class="br">
+        <button class="btn bsm" onclick="copyLink('student','${id}')" style="font-size:11px">🔗 نسخ رابط الطالب</button>
         <button class="btn bp" onclick="saveStEdit('${id}')">حفظ التعديلات</button>
         ${s.withdrawn?
           '<button class="btn ba" onclick="toggleWithdrawn(&quot;'+id+'&quot;)">↩ إعادة تفعيل</button>':
@@ -1744,6 +1774,7 @@ function renderScDet(id){
         <div class="f"><label>ملاحظات</label><input id="sc-e-notes" value="${esc(s.notes||'')}"/></div>
       </div>
       <div class="br">
+        <button class="btn bsm" onclick="copyLink('school','${id}')" style="font-size:11px">🔗 رابط</button>
         <button class="btn bp" onclick="saveScEdit('${id}')">حفظ</button>
         <button class="btn bd" onclick="delSc('${id}')">حذف المدرسة</button>
       </div>
@@ -1799,6 +1830,7 @@ function renderCnDet(id){
     </div>
     <div class="card">
       <div class="br">
+        <button class="btn bsm" onclick="copyLink('center','${id}')" style="font-size:11px">🔗 رابط</button>
         <button class="btn bd" onclick="delCn('${id}')">حذف المركز</button>
       </div>
     </div>`;
@@ -2269,7 +2301,145 @@ function toggleInst(sid,iid,checked){
   saveDB();renderStDet(sid);
 }
 
-loadDB();
+// ── PUBLIC VIEW (read-only via URL params) ────────────────────────────────────
+function checkPublicView(){
+  const params=new URLSearchParams(window.location.search);
+  const sid=params.get('s'),scid=params.get('sc'),cnid=params.get('cn');
+  if(!sid&&!scid&&!cnid)return false;
+  // Wait for data to load then show public view
+  window._publicView={sid,scid,cnid};
+  return true;
+}
+function showPublicView(){
+  const pv=window._publicView;if(!pv)return;
+  document.querySelector('header').style.display='none';
+  document.querySelector('nav').style.display='none';
+  document.getElementById('main').innerHTML='<div id="pv-wrap" style="max-width:480px;margin:0 auto;padding:16px"></div>';
+  const wrap=document.getElementById('pv-wrap');
+
+  if(pv.sid){
+    const s=db.students[pv.sid];
+    if(!s){wrap.innerHTML='<div class="card"><div class="empty">الطالب غير موجود</div></div>';return;}
+    const g=s.groupId&&db.groups[s.groupId];
+    const rp=relPaid(s),tgt=target(s),r=tgt-rp,pct=pctBar(rp,tgt),bc=barColor(pct);
+    const pays=[...(s.payments||[])].filter(p=>!p.autoTransfer&&!p.prefilled).sort((a,b)=>a.date<b.date?-1:1);
+    // Progress
+    let progHtml='';
+    if(g&&g.currentUnit){
+      const totLessons=(g.totalUnits||10)*(g.lessonsPerUnit||7);
+      const doneLessons=((g.currentUnit-1)*(g.lessonsPerUnit||7))+(g.currentLesson||1);
+      const progPct=Math.round((doneLessons/totLessons)*100);
+      progHtml=`<div class="card">
+        <div class="ct">تقدم المادة</div>
+        <div style="font-size:15px;font-weight:600;margin-bottom:4px">الوحدة ${g.currentUnit||1} من ${g.totalUnits||10}</div>
+        <div style="font-size:13px;color:var(--tx2);margin-bottom:8px">الدرس ${g.currentLesson||1} من ${g.lessonsPerUnit||7} في هذه الوحدة</div>
+        ${g.progressNote?'<div style="font-size:12px;color:var(--tx3);margin-bottom:8px">'+esc(g.progressNote)+'</div>':''}
+        <div class="pw"><div class="pb" style="width:${progPct}%;background:var(--bl-t)"></div></div>
+        <div style="font-size:11px;color:var(--tx3);margin-top:4px">${doneLessons} درس من أصل ${totLessons} درس (${progPct}%)</div>
+      </div>`;
+    }
+    wrap.innerHTML=`
+      <div style="text-align:center;padding:16px 0">
+        <div style="font-size:20px;font-weight:700">${s.name}</div>
+        <div style="font-size:13px;color:var(--tx3);margin-top:4px">${g?g.name:''}</div>
+      </div>
+      ${progHtml}
+      <div class="card">
+        <div class="ct">ملخص الدفعات</div>
+        <div class="mts m3">
+          <div class="mt"><div class="ml">المستهدف</div><div class="mv">${fmt(tgt)} د.أ</div></div>
+          <div class="mt"><div class="ml">المدفوع</div><div class="mv g">${fmt(rp)} د.أ</div></div>
+          <div class="mt"><div class="ml">المتبقي</div><div class="mv ${r>0?'r':'g'}">${fmt(r)} د.أ</div></div>
+        </div>
+        <div class="pw"><div class="pb" style="width:${pct.toFixed(1)}%;background:${bc}"></div></div>
+        <div style="font-size:11px;color:var(--tx3);margin-top:4px;text-align:center">${pct.toFixed(0)}% مسدّد</div>
+      </div>
+      <div class="card">
+        <div class="ct">سجل الدفعات</div>
+        ${pays.length===0?'<div class="empty">لا توجد دفعات</div>':
+          pays.map(p=>`<div class="pi">
+            <div class="pl"><div class="pa">+ ${fmt(p.amount)} د.أ</div>
+              <span class="psem ${p.semester==2?'ps2':'ps1'}">${p.semester==2?'فصل ثاني':'فصل أول'}</span>
+            </div>
+            <div class="pm"><div>${p.date}</div><div class="prec">${p.receipt||'—'}</div></div>
+          </div>`).join('')}
+      </div>`;
+  }
+
+  if(pv.scid){
+    const s=db.schools[pv.scid];
+    if(!s){wrap.innerHTML='<div class="card"><div class="empty">المدرسة غير موجودة</div></div>';return;}
+    const rp=totalPaid(s),r=s.total-rp,pct=pctBar(rp,s.total),bc=barColor(pct);
+    const pays=[...(s.payments||[])].sort((a,b)=>a.date<b.date?-1:1);
+    const monthNames={9:'شهر 1',10:'شهر 2',11:'شهر 3',12:'شهر 4',1:'شهر 5',2:'شهر 6',3:'شهر 7',4:'شهر 8',5:'شهر 9',6:'شهر 10',7:'شهر 11',8:'شهر 12'};
+    wrap.innerHTML=`
+      <div style="text-align:center;padding:16px 0">
+        <div style="font-size:20px;font-weight:700">${s.name}</div>
+        <div style="font-size:13px;color:var(--tx3)">${s.classes} شعب</div>
+      </div>
+      <div class="card">
+        <div class="mts m3">
+          <div class="mt"><div class="ml">المتفق عليه</div><div class="mv">${fmt(s.total)} د.أ</div></div>
+          <div class="mt"><div class="ml">المدفوع</div><div class="mv g">${fmt(rp)} د.أ</div></div>
+          <div class="mt"><div class="ml">المتبقي</div><div class="mv ${r>0?'r':'g'}">${fmt(r)} د.أ</div></div>
+        </div>
+        <div class="pw"><div class="pb" style="width:${pct.toFixed(1)}%;background:${bc}"></div></div>
+      </div>
+      <div class="card">
+        <div class="ct">سجل الدفعات</div>
+        ${pays.map(p=>`<div class="pi">
+          <div class="pl"><div class="pa">+ ${fmt(p.amount)} د.أ</div>
+            ${p.month?'<span class="psem ps1">'+monthNames[p.month]+'</span>':''}
+          </div>
+          <div class="pm"><div>${p.date}</div><div class="prec">${p.receipt||'—'}</div>${p.note?'<div class="pnote">'+esc(p.note)+'</div>':''}</div>
+        </div>`).join('')}
+      </div>`;
+  }
+
+  if(pv.cnid){
+    const c=db.centers[pv.cnid];
+    if(!c){wrap.innerHTML='<div class="card"><div class="empty">المركز غير موجود</div></div>';return;}
+    const rp=totalPaid(c),tgt=c.customTotal||c.total||0,r=tgt-rp,pct=pctBar(rp,tgt),bc=barColor(pct);
+    const pays=[...(c.payments||[])].sort((a,b)=>a.date<b.date?-1:1);
+    wrap.innerHTML=`
+      <div style="text-align:center;padding:16px 0">
+        <div style="font-size:20px;font-weight:700">${c.name}</div>
+        <div style="font-size:13px;color:var(--tx3)">${c.studentCount} طالب</div>
+      </div>
+      <div class="card">
+        <div class="mts m3">
+          <div class="mt"><div class="ml">المطلوب</div><div class="mv">${fmt(tgt)} د.أ</div></div>
+          <div class="mt"><div class="ml">المدفوع</div><div class="mv g">${fmt(rp)} د.أ</div></div>
+          <div class="mt"><div class="ml">المتبقي</div><div class="mv ${r>0?'r':'g'}">${fmt(r)} د.أ</div></div>
+        </div>
+        <div class="pw"><div class="pb" style="width:${pct.toFixed(1)}%;background:${bc}"></div></div>
+      </div>
+      <div class="card">
+        <div class="ct">سجل الدفعات</div>
+        ${pays.map(p=>`<div class="pi">
+          <div class="pl"><div class="pa">+ ${fmt(p.amount)} د.أ</div></div>
+          <div class="pm"><div>${p.date}</div><div class="prec">${p.receipt||'—'}</div>${p.note?'<div class="pnote">'+esc(p.note)+'</div>':''}</div>
+        </div>`).join('')}
+      </div>`;
+  }
+}
+
+// Add copy link button to student/school/center detail
+function copyLink(type,id){
+  const base=window.location.origin+window.location.pathname;
+  const param=type==='student'?'s':type==='school'?'sc':'cn';
+  const url=base+'?'+param+'='+id;
+  navigator.clipboard.writeText(url).then(()=>{
+    alert('تم نسخ الرابط: '+url);
+  }).catch(()=>{
+    prompt('انسخ الرابط:',url);
+  });
+}
+
+checkPublicView();
+loadDB().then(()=>{
+  if(window._publicView)showPublicView();
+});
 </script>
 </body>
 </html>
