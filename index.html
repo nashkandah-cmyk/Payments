@@ -297,15 +297,17 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
 <!-- ══════════════════════════════════════════════════════════════
      GROUPS
 ══════════════════════════════════════════════════════════════ -->
-<div id="tab-groups" style="display:none">
+<!-- Add Group Form -->
+<div id="tab-add-group" style="display:none">
   <div class="card">
+    <button class="btn bsm" onclick="TAB('groups')" style="margin-bottom:11px">← رجوع للمجموعات</button>
     <div class="ct">إضافة مجموعة جديدة</div>
     <div id="grp-al"></div>
     <div class="fg fg4">
       <div class="f"><label>اسم المجموعة</label><input id="g-name" placeholder="مثال: A1"/></div>
-      <div class="f"><label>الجيل (سنة الميلاد)</label><input type="number" id="g-gen" placeholder="2010" min="1990" max="2025"/></div>
-      <div class="f"><label>عدد الأفراد</label><input type="text" inputmode="decimal" id="g-mem" placeholder="0" min="1" oninput="calcGrp()"/></div>
-      <div class="f"><label>المبلغ السنوي (د.أ)</label><input type="text" inputmode="decimal" id="g-ann" placeholder="0" min="0" oninput="calcGrp()"/></div>
+      <div class="f"><label>الجيل (سنة الميلاد)</label><input type="text" inputmode="numeric" id="g-gen" placeholder="2010"/></div>
+      <div class="f"><label>عدد الأفراد</label><input type="text" inputmode="decimal" id="g-mem" placeholder="0" oninput="calcGrp()"/></div>
+      <div class="f"><label>المبلغ السنوي (د.أ)</label><input type="text" inputmode="decimal" id="g-ann" placeholder="0" oninput="calcGrp()"/></div>
     </div>
     <div class="fg fg2" style="margin-bottom:10px">
       <div class="f"><label>الفصلي (يُحسب)</label><input type="text" inputmode="decimal" id="g-sem" placeholder="0"/></div>
@@ -323,6 +325,15 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
     </div>
     <button class="btn bp" onclick="addGroup()">حفظ المجموعة</button>
   </div>
+</div>
+
+<!-- Groups List -->
+<div id="tab-groups" style="display:none">
+  <div style="display:flex;gap:7px;margin-bottom:9px;align-items:center">
+    <input id="grp-srch" placeholder="بحث بالاسم..." oninput="renderGroups()" style="flex:1"/>
+    <button class="btn bp bsm" onclick="TAB('add-group')">+ إضافة مجموعة</button>
+  </div>
+  <div id="grp-alpha-bar" style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:8px"></div>
   <div id="grp-list"></div>
 </div>
 
@@ -881,7 +892,7 @@ function closeModal(e){if(!e||e.target.id==='modal')document.getElementById('mod
 
 // ── TABS ──────────────────────────────────────────────────────────────────────
 function TAB(t){
-  ['students','add-student','groups','pay','schools','centers','reports','detail'].forEach(x=>{
+  ['students','add-student','groups','add-group','pay','schools','centers','reports','detail'].forEach(x=>{
     const e=document.getElementById('tab-'+x);if(e)e.style.display='none';
   });
   const mainTabs=['students','groups','pay','schools','centers','reports'];
@@ -889,6 +900,7 @@ function TAB(t){
   const el=document.getElementById('tab-'+t);if(el)el.style.display='block';
   if(t==='students'){popGrpFilter();renderStudents('');}
   if(t==='add-student'){popGrpSels();}
+  if(t==='add-group'){alphaGrpActive=null;}
   if(t==='groups')renderGroups();
   if(t==='schools')renderSchools();
   if(t==='centers')renderCenters();
@@ -1036,18 +1048,42 @@ function addGroup(){
   saveDB();popGrpSels();popGrpFilter();renderGroups();
   al('grp-al','تم حفظ المجموعة '+name,'s');
   ['g-name','g-gen','g-mem','g-ann','g-sem','g-pp','g-units','g-lessons','g-curunit','g-curlesson','g-progress-note'].forEach(x=>set(x,''));
+  TAB('groups');
+}
+let alphaGrpActive=null;
+function renderGrpAlphaBar(){
+  const bar=document.getElementById('grp-alpha-bar');
+  if(!bar)return;
+  const letters=[...'ابتثجحخدذرزسشصضطظعغفقكلمنهوي'];
+  bar.innerHTML=letters.map(l=>`<button class="chip${alphaGrpActive===l?' on':''}" style="min-width:28px;padding:3px 6px;font-size:12px" onclick="setAlphaGrp('${l}')">${l}</button>`).join('')+
+    `<button class="chip${alphaGrpActive===null?' on':''}" style="font-size:12px" onclick="setAlphaGrp(null)">الكل</button>`;
+}
+function setAlphaGrp(l){
+  alphaGrpActive=l;
+  if(document.getElementById('grp-srch'))document.getElementById('grp-srch').value='';
+  renderGrpAlphaBar();
+  renderGroups();
 }
 function renderGroups(){
   const box=document.getElementById('grp-list');
-  const gs=obj(db.groups);
+  const q=(document.getElementById('grp-srch')?.value||'').toLowerCase().trim();
+  let gs=obj(db.groups);
+  if(alphaGrpActive)gs=gs.filter(g=>g.name.trim()[0]===alphaGrpActive);
+  if(q)gs=gs.filter(g=>g.name.toLowerCase().includes(q)||(g.generation||'').includes(q));
+  gs.sort((a,b)=>a.name.localeCompare(b.name,'ar'));
+  renderGrpAlphaBar();
   if(!gs.length){box.innerHTML='<div class="empty"><div class="ei">🗂</div>لا توجد مجموعات</div>';return;}
   box.innerHTML=gs.map(g=>{
     const sts=obj(db.students).filter(s=>s.groupId===g.id);
     const tot=sts.reduce((a,s)=>a+totalPaid(s),0);
+    const tu=g.totalUnits||10,lpu=g.lessonsPerUnit||7,cu=g.currentUnit||1,cl=g.currentLesson||1;
+    const done=((cu-1)*lpu)+(cl-1),total=tu*lpu,pct=Math.round((done/total)*100);
     return`<div class="item" onclick="openGrpDetail('${g.id}')">
       <div class="irow">
-        <div><div class="iname">${g.name} ${g.generation?'<span class="tag tp">'+g.generation+'</span>':''}</div>
-          <div class="isub">${g.members} فرد · ف/فرد ${fmt(g.members>0?g.annual/g.members:0)} · محصّل ${fmt(tot)} د.أ · ${sts.length} طالب</div>
+        <div>
+          <div class="iname">${g.name} ${g.generation?'<span class="tag tp">'+g.generation+'</span>':''}</div>
+          <div class="isub">${sts.length} طالب · محصّل ${fmt(tot)} د.أ</div>
+          ${g.currentUnit?'<div style="margin-top:5px"><div class="pw" style="height:4px"><div class="pb" style="width:'+pct+'%;background:var(--bl-t)"></div></div><div style="font-size:10px;color:var(--tx3);margin-top:2px">وحدة '+cu+'/'+tu+' · درس '+cl+'/'+lpu+' ('+pct+'%)</div></div>':''}
         </div>
         <button class="btn bd bsm" onclick="event.stopPropagation();delGrp('${g.id}')">حذف</button>
       </div>
