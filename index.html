@@ -2306,16 +2306,22 @@ function checkPublicView(){
   const params=new URLSearchParams(window.location.search);
   const sid=params.get('s'),scid=params.get('sc'),cnid=params.get('cn');
   if(!sid&&!scid&&!cnid)return false;
-  // Wait for data to load then show public view
   window._publicView={sid,scid,cnid};
+  // Immediately hide the full app
+  document.querySelector('header').style.display='none';
+  document.querySelector('nav').style.display='none';
+  const main=document.getElementById('main');
+  if(main){
+    main.innerHTML='<div id="pv-wrap" style="max-width:480px;margin:0 auto;padding:16px"><div class="card"><div style="text-align:center;padding:20px;color:var(--tx3)">جاري التحميل...</div></div></div>';
+    main.style.display='block';
+  }
   return true;
 }
 function showPublicView(){
   const pv=window._publicView;if(!pv)return;
-  document.querySelector('header').style.display='none';
-  document.querySelector('nav').style.display='none';
-  document.getElementById('main').innerHTML='<div id="pv-wrap" style="max-width:480px;margin:0 auto;padding:16px"></div>';
-  const wrap=document.getElementById('pv-wrap');
+  const pvWrap=document.getElementById('pv-wrap');
+  if(pvWrap)pvWrap.innerHTML='';
+  const wrap=pvWrap||document.getElementById('main');
 
   if(pv.sid){
     const s=db.students[pv.sid];
