@@ -544,6 +544,7 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
 'use strict';
 const SK='pmdb_v4';
@@ -1642,7 +1643,8 @@ function renderStDet(id){
         <div class="f"><label>ملاحظات</label><input id="e-notes" value="${esc(s.notes||'')}"/></div>
       </div>
       <div class="br">
-        <button class="btn bsm" onclick="copyLink('student','${id}')" style="font-size:11px">🔗 نسخ رابط الطالب</button>
+        <button class="btn bsm" onclick="copyLink('student','${id}')" style="font-size:11px">🔗 رابط</button>
+        <button class="btn bsm" onclick="exportCard('student','${id}')" style="font-size:11px">📷 صورة</button>
         <button class="btn bp" onclick="saveStEdit('${id}')">حفظ التعديلات</button>
         ${s.withdrawn?
           '<button class="btn ba" onclick="toggleWithdrawn(&quot;'+id+'&quot;)">↩ إعادة تفعيل</button>':
@@ -1887,6 +1889,7 @@ function renderScDet(id){
       </div>
       <div class="br">
         <button class="btn bsm" onclick="copyLink('school','${id}')" style="font-size:11px">🔗 رابط</button>
+        <button class="btn bsm" onclick="exportCard('school','${id}')" style="font-size:11px">📷 صورة</button>
         <button class="btn bp" onclick="saveScEdit('${id}')">حفظ</button>
         <button class="btn bd" onclick="delSc('${id}')">حذف المدرسة</button>
       </div>
@@ -1943,6 +1946,7 @@ function renderCnDet(id){
     <div class="card">
       <div class="br">
         <button class="btn bsm" onclick="copyLink('center','${id}')" style="font-size:11px">🔗 رابط</button>
+        <button class="btn bsm" onclick="exportCard('center','${id}')" style="font-size:11px">📷 صورة</button>
         <button class="btn bd" onclick="delCn('${id}')">حذف المركز</button>
       </div>
     </div>`;
@@ -2535,6 +2539,95 @@ function showPublicView(){
 }
 
 // Add copy link button to student/school/center detail
+function exportCard(type,eid){
+  const src=type==='student'?db.students:type==='school'?db.schools:db.centers;
+  const e=src[eid];if(!e)return;
+
+  // Build card HTML
+  let rp,tgt,r,pct,name,sub1,sub2,progHtml='';
+  if(type==='student'){
+    rp=relPaid(e);tgt=target(e);r=tgt-rp;
+    const pctN=pctBar(rp,tgt);
+    name=e.name;
+    sub1=e.groupName||'';
+    sub2={both:'فصل أول + ثاني',sem1:'فصل أول فقط',sem2:'فصل ثاني فقط'}[e.enrollType||'both'];
+    const g=e.groupId&&db.groups[e.groupId];
+    if(g&&g.currentUnit){
+      const tu=g.totalUnits||10,lpu=g.lessonsPerUnit||7,cu=g.currentUnit||1,cl=g.currentLesson||1;
+      const done=((cu-1)*lpu)+(cl-1),total=tu*lpu,pp=Math.round((done/total)*100);
+      progHtml=`<div style="margin-top:12px;padding-top:12px;border-top:1px solid #eee">
+        <div style="font-size:11px;color:#888;margin-bottom:4px">تقدم المادة</div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px">الوحدة ${cu} من ${tu} · الدرس ${cl} من ${lpu}</div>
+        <div style="background:#eee;border-radius:99px;height:8px;overflow:hidden">
+          <div style="width:${pp}%;height:100%;background:#4f86f7;border-radius:99px"></div>
+        </div>
+        <div style="font-size:11px;color:#888;margin-top:3px">${pp}% مكتمل</div>
+      </div>`;
+    }
+    pct=pctN;
+  } else if(type==='school'){
+    rp=totalPaid(e);tgt=e.total;r=tgt-rp;
+    name=e.name;sub1='مدرسة · '+e.classes+' شعب';sub2='';
+    pct=pctBar(rp,tgt);
+  } else {
+    rp=totalPaid(e);tgt=e.customTotal||e.total||0;r=tgt-rp;
+    name=e.name;sub1='مركز · '+e.studentCount+' طالب';sub2='';
+    pct=pctBar(rp,tgt);
+  }
+
+  const pctNum=Math.round(pct);
+  const barColor=pctNum>=100?'#22c55e':pctNum>=60?'#f59e0b':'#ef4444';
+  const today=new Date().toLocaleDateString('ar-JO',{year:'numeric',month:'long',day:'numeric'});
+
+  const card=document.createElement('div');
+  card.style.cssText='position:fixed;top:-9999px;left:-9999px;width:360px;background:#fff;border-radius:16px;padding:24px;font-family:Arial,sans-serif;direction:rtl;box-shadow:0 4px 20px rgba(0,0,0,.15)';
+  card.innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div>
+        <div style="font-size:18px;font-weight:700;color:#111">${name}</div>
+        ${sub1?'<div style="font-size:12px;color:#888;margin-top:2px">'+sub1+'</div>':''}
+        ${sub2?'<div style="font-size:11px;color:#aaa">'+sub2+'</div>':''}
+      </div>
+      <div style="font-size:10px;color:#bbb;text-align:left">${today}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">
+      <div style="background:#f8f8f8;border-radius:10px;padding:10px;text-align:center">
+        <div style="font-size:10px;color:#aaa;margin-bottom:3px">المستهدف</div>
+        <div style="font-size:14px;font-weight:700;color:#333">${fmt(tgt)}</div>
+        <div style="font-size:10px;color:#aaa">د.أ</div>
+      </div>
+      <div style="background:#f0fdf4;border-radius:10px;padding:10px;text-align:center">
+        <div style="font-size:10px;color:#aaa;margin-bottom:3px">المدفوع</div>
+        <div style="font-size:14px;font-weight:700;color:#16a34a">${fmt(rp)}</div>
+        <div style="font-size:10px;color:#aaa">د.أ</div>
+      </div>
+      <div style="background:${r>0?'#fff7ed':'#f0fdf4'};border-radius:10px;padding:10px;text-align:center">
+        <div style="font-size:10px;color:#aaa;margin-bottom:3px">المتبقي</div>
+        <div style="font-size:14px;font-weight:700;color:${r>0?'#ea580c':'#16a34a'}">${fmt(r)}</div>
+        <div style="font-size:10px;color:#aaa">د.أ</div>
+      </div>
+    </div>
+    <div style="background:#f8f8f8;border-radius:10px;height:10px;overflow:hidden;margin-bottom:6px">
+      <div style="width:${pctNum}%;height:100%;background:${barColor};border-radius:10px;transition:width .3s"></div>
+    </div>
+    <div style="font-size:12px;color:#888;text-align:center;margin-bottom:4px">${pctNum}% مسدّد</div>
+    ${progHtml}
+    <div style="margin-top:16px;padding-top:10px;border-top:1px solid #f0f0f0;font-size:10px;color:#ccc;text-align:center">إدارة الدفعات المالية</div>
+  `;
+  document.body.appendChild(card);
+
+  html2canvas(card,{scale:2,backgroundColor:'#fff',useCORS:true}).then(canvas=>{
+    document.body.removeChild(card);
+    const link=document.createElement('a');
+    link.download=name+'_'+today+'.png';
+    link.href=canvas.toDataURL('image/png');
+    link.click();
+  }).catch(err=>{
+    document.body.removeChild(card);
+    alert('حدث خطأ أثناء إنشاء الصورة');
+  });
+}
+
 function copyLink(type,id){
   const base=window.location.origin+window.location.pathname;
   const param=type==='student'?'s':type==='school'?'sc':'cn';
