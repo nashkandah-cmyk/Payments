@@ -612,6 +612,7 @@ async function loadDB(){
   // Load local first for instant UI
   try{const r=localStorage.getItem(SK);if(r)db=JSON.parse(r);}catch(e){}
   ['students','groups','schools','centers'].forEach(k=>{if(!db[k])db[k]={};});
+  if(!db.counters)db.counters={student:0,school:0,center:0};
   let changed=false;
   obj(db.students).forEach(s=>{
     if(recoverMissingTransfers(s))changed=true;
@@ -880,6 +881,16 @@ function paidInRange(e,d1,d2){
   }).reduce((a,p)=>a+p.amount,0);
 }
 function genId(){return '_'+Math.random().toString(36).slice(2,9);}
+
+// ── AUTO RECEIPT NUMBERING ──────────────────────────────────────────────────
+function genReceipt(type){
+  if(!db.counters)db.counters={student:0,school:0,center:0};
+  const year=new Date().getFullYear().toString().slice(2);
+  const prefix={student:'ط',school:'م',center:'مر'}[type]||'ط';
+  db.counters[type]=(db.counters[type]||0)+1;
+  const num=String(db.counters[type]).padStart(4,'0');
+  return prefix+'-'+year+'-'+num;
+}
 function rw(l,v){return`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:5px 0;border-bottom:.5px solid var(--bor)"><span style="color:var(--tx2);font-size:11px">${l}</span><span style="font-size:12px;font-weight:500;text-align:left">${v}</span></div>`;}
 
 // ── MODAL ─────────────────────────────────────────────────────────────────────
@@ -1416,7 +1427,9 @@ function savePay(){
   const amount=parseFloat(arToEn(v('pw-amt')||''))||0,date=v('pw-date');
   if(!amount||!date)return;
   const rb=v('pw-rbook'),rn=v('pw-rnum');
-  const receipt=rb&&rn?rb+'-'+rn:rn||rb||'';
+  const manualReceipt=rb&&rn?rb+'-'+rn:rn||rb||'';
+  // Auto-generate receipt number if none provided
+  const receipt=manualReceipt||genReceipt(PW.entType);
   const note=v('pw-note').trim();
   const src=PW.entType==='student'?db.students:PW.entType==='school'?db.schools:db.centers;
   if(!src[PW.ent.id].payments)src[PW.ent.id].payments=[];
@@ -1590,6 +1603,7 @@ function renderStDet(id){
           <div class="pl">
             <div class="pa">+ ${fmt(p.amount)} د.أ</div>
             <span class="psem ${p.semester==2?'ps2':'ps1'}">${p.semester==2?'فصل ثاني':'فصل أول'}${p.prefilled?' · مدفوع مسبقاً':''}${p.splitOverflow?' · ➡ ترحيل '+fmt(p.splitOverflow)+' د.أ':''}${p.fromSplit?' · من ترحيل':''}</span>
+            ${p.receipt&&p.receipt.includes('-')&&(p.receipt.startsWith('ط-')||p.receipt.startsWith('م-')||p.receipt.startsWith('مر-'))?'<span class="psem" style="background:var(--sur2);color:var(--tx2);border-color:var(--bdr);font-family:monospace">#'+p.receipt+'</span>':''}
           </div>
           <div class="pm">
             <div>${p.date}</div>
@@ -2633,7 +2647,7 @@ function exportCard(type,eid){
             '<div style="font-size:11px;color:#aaa">'+sem+'</div>'+
           '</div>'+
         '</div>'+
-        (last.receipt?'<div style="font-size:11px;color:#aaa;margin-top:4px">وصل: '+last.receipt+'</div>':'')+
+        (last.receipt?'<div style="font-size:12px;color:#555;margin-top:6px;font-family:monospace;font-weight:600;background:#fff;border-radius:6px;padding:4px 8px;display:inline-block">🧾 '+last.receipt+'</div>':'')+
         (last.note?'<div style="font-size:11px;color:#666;margin-top:4px;font-style:italic">'+last.note+'</div>':'')+
       '</div>';
     })()}
