@@ -185,6 +185,21 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
 </style>
 </head>
 <body>
+<script>
+(function(){
+  var p=new URLSearchParams(window.location.search);
+  if(p.get('s')||p.get('sc')||p.get('cn')){
+    document.documentElement.setAttribute('data-pv','1');
+  }
+})();
+</script>
+<style>
+[data-pv='1'] .hdr,[data-pv='1'] nav,[data-pv='1'] #main{display:none!important}
+[data-pv='1'] #pv-outer{display:block!important}
+</style>
+<div id="pv-outer" style="display:none;max-width:480px;margin:0 auto;padding:16px">
+  <div class="card"><div style="text-align:center;padding:20px;color:var(--tx3)">جاري التحميل...</div></div>
+</div>
 
 <header class="hdr">
   <div class="hdr-ico">📋</div>
@@ -1065,6 +1080,7 @@ function renderGrpDet(id){
       </div>
       <div class="pw"><div class="pb" style="width:${pct.toFixed(1)}%;background:${bc}"></div></div>
     </div>
+    ${renderGrpProgress(g,id)}
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:11px">
         <div class="ct" style="margin:0">طلاب المجموعة (${sts.length})</div>
@@ -1091,6 +1107,56 @@ function renderGrpDet(id){
         }).join('')}
     </div>`;
 }
+function renderGrpProgress(g,gid){
+  const totalUnits=g.totalUnits||10;
+  const lessonsPerUnit=g.lessonsPerUnit||7;
+  const curUnit=g.currentUnit||1;
+  const curLesson=g.currentLesson||1;
+  const totalLessons=totalUnits*lessonsPerUnit;
+  const doneLessons=((curUnit-1)*lessonsPerUnit)+(curLesson-1);
+  const pct=Math.round((doneLessons/totalLessons)*100);
+  const bc=pct>=80?'var(--gr-t)':pct>=40?'var(--am-t)':'var(--bl-t)';
+
+  // Build unit rows - each row is a unit, each cell is a lesson
+  let rows='';
+  for(let u=1;u<=totalUnits;u++){
+    let cells='';
+    for(let l=1;l<=lessonsPerUnit;l++){
+      const done=(u<curUnit)||(u===curUnit&&l<curLesson);
+      const current=u===curUnit&&l===curLesson;
+      const bg=done?'var(--gr-t)':current?'var(--bl-t)':'var(--sur2)';
+      const border=current?'2px solid var(--bl-t)':'1px solid var(--bdr)';
+      cells+=`<div onclick="setGrpProgress('${gid}',${u},${l})" title="وحدة ${u} - درس ${l}" style="width:20px;height:20px;border-radius:4px;background:${bg};border:${border};cursor:pointer;transition:all .2s;flex-shrink:0"></div>`;
+    }
+    const uDone=u<curUnit;
+    rows+=`<div style="display:flex;align-items:center;gap:4px;margin-bottom:4px">
+      <div style="font-size:11px;color:var(--tx3);width:50px;flex-shrink:0">وحدة ${u}</div>
+      <div style="display:flex;gap:3px;flex-wrap:wrap">${cells}</div>
+      ${uDone?'<span style="font-size:10px;color:var(--gr-t);margin-right:4px">✓</span>':''}
+    </div>`;
+  }
+
+  return`<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div class="ct" style="margin:0">تقدم المادة</div>
+      <div style="font-size:13px;font-weight:600;color:var(--tx2)">الوحدة ${curUnit}/${totalUnits} · الدرس ${curLesson}/${lessonsPerUnit}</div>
+    </div>
+    ${g.progressNote?`<div style="font-size:12px;color:var(--tx3);margin-bottom:10px;padding:7px 10px;background:var(--sur2);border-radius:var(--rs)">${esc(g.progressNote)}</div>`:''}
+    <div class="pw" style="margin-bottom:6px"><div class="pb" style="width:${pct}%;background:${bc}"></div></div>
+    <div style="font-size:11px;color:var(--tx3);margin-bottom:12px">${doneLessons} درس مكتمل من ${totalLessons} (${pct}%)</div>
+    <div style="overflow-x:auto;padding-bottom:4px">${rows}</div>
+    <div style="font-size:10px;color:var(--tx3);margin-top:8px;text-align:center">اضغط على أي خلية لتحديد الدرس الحالي</div>
+  </div>`;
+}
+
+function setGrpProgress(gid,unit,lesson){
+  const g=db.groups[gid];if(!g)return;
+  g.currentUnit=unit;
+  g.currentLesson=lesson;
+  saveDB();
+  renderGrpDet(gid);
+}
+
 function showGrpEdit(id){
   const g=db.groups[id];if(!g)return;
   showModal('تعديل مجموعة '+g.name,`
@@ -1509,7 +1575,17 @@ function renderStDet(id){
     </div>
 
     <div class="card">
-      <div class="ct">تعديل بيانات الطالب</div>
+      ${(()=>{const g=s.groupId&&db.groups[s.groupId];if(!g||!g.currentUnit)return '';
+      const tu=g.totalUnits||10,lpu=g.lessonsPerUnit||7,cu=g.currentUnit||1,cl=g.currentLesson||1;
+      const done=((cu-1)*lpu)+(cl-1),total=tu*lpu,pct=Math.round((done/total)*100);
+      return'<div style="background:var(--sur2);border-radius:var(--rs);padding:10px 12px;margin-bottom:12px">'+
+        '<div style="font-size:12px;font-weight:600;margin-bottom:6px">📚 تقدم المادة — الوحدة '+cu+' من '+tu+' · الدرس '+cl+' من '+lpu+'</div>'+
+        '<div class="pw"><div class="pb" style="width:'+pct+'%;background:var(--bl-t)"></div></div>'+
+        '<div style="font-size:11px;color:var(--tx3);margin-top:3px">'+done+' درس من '+total+' ('+pct+'%)</div>'+
+        (g.progressNote?'<div style="font-size:11px;color:var(--tx3);margin-top:4px">'+esc(g.progressNote)+'</div>':'')+
+      '</div>';
+    })()}
+    <div class="ct">تعديل بيانات الطالب</div>
       <div class="fg fg2">
         <div class="f"><label>الاسم</label><input id="e-name" value="${esc(s.name)}"/></div>
         <div class="f"><label>المجموعة</label><select id="e-grp">${grpOpts(s.groupId)}</select></div>
@@ -2307,21 +2383,13 @@ function checkPublicView(){
   const sid=params.get('s'),scid=params.get('sc'),cnid=params.get('cn');
   if(!sid&&!scid&&!cnid)return false;
   window._publicView={sid,scid,cnid};
-  // Immediately hide the full app
-  document.querySelector('header').style.display='none';
-  document.querySelector('nav').style.display='none';
-  const main=document.getElementById('main');
-  if(main){
-    main.innerHTML='<div id="pv-wrap" style="max-width:480px;margin:0 auto;padding:16px"><div class="card"><div style="text-align:center;padding:20px;color:var(--tx3)">جاري التحميل...</div></div></div>';
-    main.style.display='block';
-  }
   return true;
 }
 function showPublicView(){
   const pv=window._publicView;if(!pv)return;
-  const pvWrap=document.getElementById('pv-wrap');
-  if(pvWrap)pvWrap.innerHTML='';
-  const wrap=pvWrap||document.getElementById('main');
+  const wrap=document.getElementById('pv-outer');
+  if(!wrap)return;
+  wrap.innerHTML='';
 
   if(pv.sid){
     const s=db.students[pv.sid];
