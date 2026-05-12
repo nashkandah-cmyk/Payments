@@ -219,7 +219,7 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
   </div>
   <button onclick="pullFromSheets()" class="btn bsm" title="تحديث من السحابة" style="font-size:16px;padding:5px 10px">🔄</button>
   <button onclick="backupData()" class="btn bsm" title="نسخة احتياطية" style="font-size:16px;padding:5px 10px">💾</button>
-  <button onclick="restoreData()" class="btn bsm" title="استعادة من ملف" style="font-size:16px;padding:5px 10px">📂</button>
+  <label title="استعادة من ملف" class="btn bsm" style="font-size:16px;padding:5px 10px;cursor:pointer">📂<input type="file" accept=".json" style="display:none" onchange="restoreFromFile(this)"/></label>
 
 </header>
 
@@ -2825,6 +2825,27 @@ function showPublicView(){
 }
 
 // Add copy link button to student/school/center detail
+function backupData(){
+  const json=JSON.stringify(db,null,2);
+  const blob=new Blob([json],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='payments-backup-'+new Date().toISOString().split('T')[0]+'.json';
+  a.click();URL.revokeObjectURL(a.href);
+}
+function restoreFromFile(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      const restored=JSON.parse(ev.target.result);
+      if(!restored.students||!restored.groups)throw new Error('ملف غير صالح');
+      if(!confirm('هل تريد استعادة البيانات؟ سيتم استبدال البيانات الحالية بالكامل.'))return;
+      db=restored;saveDB();location.reload();
+    }catch(err){alert('خطأ في الملف: '+err.message);}
+  };
+  reader.readAsText(file);
+}
 function exportPayReceipt(type,eid,pid){
   // Find the specific payment and temporarily make it "last" for exportCard
   const src=type==='student'?db.students:type==='school'?db.schools:db.centers;
