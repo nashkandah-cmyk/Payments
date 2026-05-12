@@ -2933,7 +2933,7 @@ function showAddSession(day,editId){
   // Build entity options
   const grpOpts=Object.values(db.groups).sort((a,b)=>a.name.localeCompare(b.name,'ar'))
     .map(g=>'<option value="group:'+g.id+'"'+(sess&&sess.entityId===g.id?' selected':'')+'>'+g.name+(g.generation?' ('+g.generation+')':'')+'</option>').join('');
-  const stOpts=Object.values(db.students).filter(s=>!s.groupId).sort((a,b)=>a.name.localeCompare(b.name,'ar'))
+  const stOpts=Object.values(db.students).filter(s=>!s.groupId&&!s.withdrawn).sort((a,b)=>a.name.localeCompare(b.name,'ar'))
     .map(s=>'<option value="student:'+s.id+'"'+(sess&&sess.entityId===s.id?' selected':'')+'>'+s.name+'</option>').join('');
   const scOpts=Object.values(db.schools).sort((a,b)=>a.name.localeCompare(b.name,'ar'))
     .map(s=>'<option value="school:'+s.id+'"'+(sess&&sess.entityId===s.id?' selected':'')+'>'+s.name+'</option>').join('');
