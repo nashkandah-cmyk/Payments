@@ -656,7 +656,7 @@ async function loadDB(){
   try{const r=localStorage.getItem(SK);if(r)db=JSON.parse(r);}catch(e){}
   ['students','groups','schools','centers'].forEach(k=>{if(!db[k])db[k]={};});
   if(!db.counters)db.counters={student:0,school:0,center:0};
-  if(!db.settings)db.settings={dosiatPrices:{}};
+  if(!db.settings)db.settings={};
   let changed=false;
   obj(db.students).forEach(s=>{
     if(recoverMissingTransfers(s))changed=true;
@@ -989,7 +989,7 @@ document.addEventListener('click',e=>{
 // ── AUTO RECEIPT NUMBERING ──────────────────────────────────────────────────
 function genReceipt(type){
   if(!db.counters)db.counters={student:0,school:0,center:0};
-  if(!db.settings)db.settings={dosiatPrices:{}};
+  if(!db.settings)db.settings={};
   const year=new Date().getFullYear().toString().slice(2);
   const prefix={student:'ط',school:'م',center:'مر'}[type]||'ط';
   db.counters[type]=(db.counters[type]||0)+1;
@@ -1249,7 +1249,7 @@ function renderGrpDet(id){
         <div class="ct" style="margin:0">طلاب المجموعة (${sts.length})</div>
         <button class="btn bp bsm" onclick="showGrpEdit('${id}')">تعديل المجموعة</button>
       </div>
-      ${(()=>{const dp=(db.settings?.dosiatPrices||{})[g.generation]||g.dosiatPrice||0;return dp&&sts.length?'<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--tx2)">الدوسيات — سعر الوحدة '+fmt(dp)+' د.أ</div><div style="display:flex;flex-wrap:wrap;gap:5px">'+Array.from({length:g.totalUnits||10},(_,i)=>{const u=i+1,cnt=sts.filter(s=>(s.dosiatPaid||[]).includes(u)).length,all=cnt===sts.length;return'<div style="padding:3px 8px;border-radius:20px;font-size:11px;background:var('+(all?'--gr':'--sur2')+'-bg);color:var('+(all?'--gr':'--tx3')+'-t);border:1px solid var('+(all?'--gr':'--bdr')+'-'+(all?'b':'')+')" title="'+cnt+'/'+sts.length+' دفعوا">و'+u+(all?' ✓':' '+cnt+'/'+sts.length)+'</div>';}).join('')+'</div></div>':'';})()}
+      ${(()=>{const hasDP=Object.keys(db.settings?.dosiatUnitPrices||{}).length>0||g.dosiatPrice;return hasDP&&sts.length?'<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--tx2)">الدوسيات</div><div style="display:flex;flex-wrap:wrap;gap:5px">'+Array.from({length:g.totalUnits||10},(_,i)=>{const u=i+1,cnt=sts.filter(s=>(s.dosiatPaid||[]).includes(u)).length,all=cnt===sts.length;return'<div style="padding:3px 8px;border-radius:20px;font-size:11px;background:var('+(all?'--gr':'--sur2')+'-bg);color:var('+(all?'--gr':'--tx3')+'-t);border:1px solid var('+(all?'--gr':'--bdr')+'-'+(all?'b':'')+')" title="'+cnt+'/'+sts.length+' دفعوا">و'+u+(all?' ✓':' '+cnt+'/'+sts.length)+'</div>';}).join('')+'</div></div>':'';})()}
       ${sts.length===0?'<div class="empty"><div class="ei">👤</div>لا يوجد طلاب في هذه المجموعة</div>':
         sts.map(s=>{
           const rp=relPaid(s),tgt2=target(s),r2=tgt2-rp,pct2=pctBar(rp,tgt2),bc2=barColor(pct2);
@@ -2139,30 +2139,7 @@ function rptRange(t){
 }
 let rptView='summary';
 
-function renderDosiatPricesForm(){
-  const form=document.getElementById('dosiat-prices-form');
-  if(!form)return;
-  // Get unique generations from groups
-  const gens=[...new Set(Object.values(db.groups).map(g=>g.generation).filter(Boolean))].sort();
-  if(!gens.length){form.innerHTML='<div style="font-size:12px;color:var(--tx3)">أضف مجموعات بجيل (سنة ميلاد) أولاً</div>';return;}
-  const prices=db.settings?.dosiatPrices||{};
-  form.innerHTML='<div class="fg fg3">'+gens.map(gen=>
-    '<div class="f"><label>جيل '+gen+' (د.أ/وحدة)</label>'+
-    '<input type="text" inputmode="decimal" id="dp-'+gen+'" value="'+(prices[gen]||'')+'"/></div>'
-  ).join('')+'</div>';
-}
-
-function saveDosiatPrices(){
-  if(!db.settings)db.settings={dosiatPrices:{}};
-  const gens=[...new Set(Object.values(db.groups).map(g=>g.generation).filter(Boolean))];
-  gens.forEach(gen=>{
-    const val=parseFloat(document.getElementById('dp-'+gen)?.value)||0;
-    db.settings.dosiatPrices[gen]=val;
-  });
-  saveDB();
-  al('dosiat-save-al','✓ تم حفظ أسعار الدوسيات','s');
-  buildRpt();
-}
+// dosiatPricesForm removed - moved to dosiat tab
 let rptSort={col:'',dir:1};
 function sortRpt(col){
   if(rptSort.col===col)rptSort.dir*=-1;
@@ -2208,9 +2185,19 @@ function buildRpt(){
   const totalTgt=stTgt+scTgt+cnTgt;
   const totalRem=totalTgt-students.reduce((a,s)=>a+relPaid(s),0)-schools.reduce((a,s)=>a+totalPaid(s),0)-centers.reduce((a,c)=>a+totalPaid(c),0);
   // Dosiat totals
-  const getDosiatPrice=g=>g?(((db.settings?.dosiatPrices||{})[g.generation]||g.dosiatPrice||0)):0;
-  const dosiatTotal=students.filter(s=>s.groupId).reduce((a,s)=>{const g=db.groups[s.groupId];return a+(getDosiatPrice(g)*(g?.totalUnits||10));},0);
-  const dosiatCollected=students.filter(s=>s.groupId).reduce((a,s)=>{const g=db.groups[s.groupId];return a+(getDosiatPrice(g)*(s.dosiatPaid||[]).length);},0);
+  const unitPricesRpt=db.settings?.dosiatUnitPrices||{};
+  const getUnitPriceRpt=u=>unitPricesRpt[u]||0;
+  const maxUnitsRpt=Math.max(...Object.values(db.groups).map(g=>g.totalUnits||10),10);
+  const dosiatTotal=allStudentsRpt?allStudentsRpt.reduce((a,s)=>{
+    const g=s.groupId&&db.groups[s.groupId];
+    const u=g?.totalUnits||s.totalUnits||10;
+    return a+Array.from({length:u},(_,i)=>getUnitPriceRpt(i+1)).reduce((x,y)=>x+y,0);
+  },0):students.reduce((a,s)=>{
+    const g=s.groupId&&db.groups[s.groupId];
+    const u=g?.totalUnits||s.totalUnits||10;
+    return a+Array.from({length:u},(_,i)=>getUnitPriceRpt(i+1)).reduce((x,y)=>x+y,0);
+  },0);
+  const dosiatCollected=students.reduce((a,s)=>a+(s.dosiatPaid||[]).reduce((b,u)=>b+getUnitPriceRpt(u),0),0);
 
   // Late payments - always show first
   const todayRpt=new Date();
@@ -2544,13 +2531,14 @@ function exportXLSX(){
 function renderDosiatCard(s,sid){
   // Get settings from group or student directly
   const g=s.groupId&&db.groups[s.groupId];
-  const gen=g?.generation||s.generation||'';
-  const price=(db.settings?.dosiatPrices||{})[gen]||g?.dosiatPrice||s.dosiatPrice||0;
   const units=g?.totalUnits||s.totalUnits||10;
-  if(!price)return '<div style="font-size:12px;color:var(--tx3);text-align:center;padding:6px">لم يُحدَّد سعر الدوسيات — أضفه في التقارير أو في تعديل بيانات الطالب</div>';
+  const unitPrices=db.settings?.dosiatUnitPrices||{};
+  const hasAnyPrice=Object.keys(unitPrices).length>0||g?.dosiatPrice||s.dosiatPrice;
+  if(!hasAnyPrice)return '<div style="font-size:12px;color:var(--tx3);text-align:center;padding:6px">لم يُحدَّد سعر الدوسيات — أضفه في تاب الدوسيات</div>';
   const paid=s.dosiatPaid||[];
-  const totalDue=units*price;
-  const totalPaidD=paid.length*price;
+  const getUP=u=>(db.settings?.dosiatUnitPrices||{})[u]||g?.dosiatPrice||s.dosiatPrice||0;
+  const totalDue=Array.from({length:units},(_,i)=>getUP(i+1)).reduce((a,b)=>a+b,0);
+  const totalPaidD=paid.reduce((a,u)=>a+getUP(u),0);
   return`<div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <div class="ct" style="margin:0">ثمن الدوسيات</div>
