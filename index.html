@@ -2869,17 +2869,10 @@ function renderSchedule(){
     const weekNum=Math.floor((weekStart.getTime())/(7*24*3600*1000));
     const weekKey='w'+weekNum;
     const daySessions=Object.values(db.schedule.sessions).filter(s=>{
-      if(s.day!==dayKey)return false;
-      if(s.recurrence==='once'){
-        // Show only on specific date
-        return s.date===dateStr;
-      }
-      if(s.recurrence==='biweekly'){
-        // Show every other week based on creation week
-        const createWeek=Math.floor(new Date(s.createdAt).getTime()/(7*24*3600*1000));
-        return (weekNum-createWeek)%2===0;
-      }
-      return true; // weekly - always show
+      const matchesDay=s.day===dayKey||(s.recurrence==='multiday'&&(s.extraDays||[]).includes(dayKey));
+      if(!matchesDay)return false;
+      if(s.recurrence==='once') return s.date===dateStr;
+      return true; // weekly or multiday - always show
     }).sort((a,b)=>a.time.localeCompare(b.time));
 
     const hasDate=daySessions.length>0;
@@ -2942,16 +2935,24 @@ function showAddSession(day,editId){
           ${DAYS_EN.map((d,i)=>'<option value="'+d+'"'+(((sess?.day||day)===d)?' selected':'')+'>'+DAYS_AR[i]+'</option>').join('')}
         </select>
       </div>
-      <div class="f"><label>الوقت</label>
-        <input type="time" id="sess-time" value="${sess?.time||'14:00'}"/>
+      <div class="f"><label>الوقت (مثال: 14:30)</label>
+        <input type="text" inputmode="numeric" id="sess-time" value="${sess?.time||'14:00'}" placeholder="14:30" style="font-family:monospace"/>
       </div>
     </div>
     <div class="f" style="margin-bottom:8px">
       <label>نوع الحصة</label>
       <div class="seg" id="sess-recur-seg">
         <button class="sb ${recur==='weekly'?'on':''}" id="sr-weekly" onclick="setSessRecur('weekly')">📅 أسبوعية</button>
-        <button class="sb ${recur==='biweekly'?'on':''}" id="sr-biweekly" onclick="setSessRecur('biweekly')">📅 كل أسبوعين</button>
+        <button class="sb ${recur==='multiday'?'on':''}" id="sr-multiday" onclick="setSessRecur('multiday')">📅 أيام متعددة</button>
         <button class="sb ${recur==='once'?'on':''}" id="sr-once" onclick="setSessRecur('once')">📌 مرة واحدة</button>
+      </div>
+    </div>
+    <div id="sess-multiday-wrap" style="display:${recur==='multiday'?'block':'none'};margin-bottom:8px">
+      <div class="f"><label>اختر الأيام الإضافية</label>
+        <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:4px">
+          ${DAYS_AR.map((d,i)=>'<button id="sd-'+DAYS_EN[i]+'" class="chip'+(((sess?.extraDays||[]).includes(DAYS_EN[i]))||false?' on':'')+'" onclick="toggleExtraDay(&quot;'+DAYS_EN[i]+'&quot;)">'+d+'</button>').join('')}
+        </div>
+        <div style="font-size:11px;color:var(--tx3);margin-top:5px">اليوم الأساسي محدد من القائمة أعلاه — اختر أيام إضافية هنا</div>
       </div>
     </div>
     <div id="sess-date-wrap" style="display:${recur==='once'?'block':'none'};margin-bottom:8px">
@@ -2974,12 +2975,18 @@ function showAddSession(day,editId){
 }
 
 function setSessRecur(type){
-  ['weekly','biweekly','once'].forEach(t=>{
+  ['weekly','multiday','once'].forEach(t=>{
     const b=document.getElementById('sr-'+t);
     if(b)b.classList.toggle('on',t===type);
   });
   const dw=document.getElementById('sess-date-wrap');
   if(dw)dw.style.display=type==='once'?'block':'none';
+  const mw=document.getElementById('sess-multiday-wrap');
+  if(mw)mw.style.display=type==='multiday'?'block':'none';
+}
+function toggleExtraDay(day){
+  const b=document.getElementById('sd-'+day);
+  if(b)b.classList.toggle('on');
 }
 function showEditSession(id){showAddSession(null,id);}
 
@@ -2991,12 +2998,14 @@ function saveSession(editId){
   if(!day||!time||!entityRaw)return;
   const [entityType,entityId]=entityRaw.split(':');
   const id=editId||genId();
-  const recurType=['weekly','biweekly','once'].find(t=>document.getElementById('sr-'+t)?.classList.contains('on'))||'weekly';
+  const recurType=['weekly','multiday','once'].find(t=>document.getElementById('sr-'+t)?.classList.contains('on'))||'weekly';
   const sessDate=recurType==='once'?v('sess-date'):'';
+  const extraDays=recurType==='multiday'?DAYS_EN.filter(d=>document.getElementById('sd-'+d)?.classList.contains('on')).filter(d=>d!==day):[];
   db.schedule.sessions[id]={
     id,day,time,entityId,entityType,
     recurrence:recurType,
     date:sessDate,
+    extraDays,
     location:v('sess-loc').trim(),
     note:v('sess-note').trim(),
     status:editId?(db.schedule.sessions[editId]?.status||'active'):'active',
