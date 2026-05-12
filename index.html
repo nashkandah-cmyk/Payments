@@ -944,13 +944,22 @@ function globalSearch(q){
     return;
   }
   box.style.display='block';
-  box.innerHTML=results.slice(0,8).map(r=>
-    '<div onclick="goToResult(&quot;'+r.type+'&quot;,&quot;'+r.id+'&quot;)" style="padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--bdr)" onmouseover="this.style.background=&quot;var(--sur2)&quot;" onmouseout="this.style.background=&quot;&quot;">'+
+  box._results=results.slice(0,8);
+  box.innerHTML=results.slice(0,8).map((r,i)=>
+    '<div data-idx="'+i+'" style="padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--bdr)">'+
       '<span style="font-size:18px">'+r.icon+'</span>'+
       '<div><div style="font-size:13px;font-weight:600">'+r.label+'</div>'+
       '<div style="font-size:11px;color:var(--tx3)">'+r.sub+'</div></div>'+
     '</div>'
   ).join('');
+  box.onclick=function(e){
+    const row=e.target.closest('[data-idx]');
+    if(!row)return;
+    const r=box._results[parseInt(row.dataset.idx)];
+    if(r)goToResult(r.type,r.id);
+  };
+  box.onmouseover=function(e){const row=e.target.closest('[data-idx]');if(row)row.style.background='var(--sur2)';};
+  box.onmouseout=function(e){const row=e.target.closest('[data-idx]');if(row)row.style.background='';};
 }
 function goToResult(type,id){
   document.getElementById('global-results').style.display='none';
@@ -2213,6 +2222,40 @@ function buildRpt(){
       tgt:gs.reduce((a,s)=>a+target(s),0),
       rem:gs.reduce((a,s)=>a+rem(s),0)};
   });
+  // Late payments section
+  const today=new Date();
+  const lateStudents=students.filter(s=>{
+    if(rem(s)<=0)return false;
+    const pays=(s.payments||[]).filter(p=>!p.autoTransfer&&!p.prefilled);
+    if(!pays.length)return target(s)>0;
+    const last=pays.sort((a,b)=>b.date>a.date?1:-1)[0];
+    return Math.floor((today-new Date(last.date))/(864e5))>45;
+  });
+  const neverPaid=students.filter(s=>rem(s)>0&&!(s.payments||[]).filter(p=>!p.autoTransfer&&!p.prefilled).length);
+  if(lateStudents.length||neverPaid.length){
+    html+=`<div class="card">
+      <div class="ct">⚠ تنبيهات الدفعات</div>
+      ${neverPaid.length?`<div style="margin-bottom:10px">
+        <div style="font-size:12px;font-weight:700;color:var(--rd-t);margin-bottom:6px">لم يدفع أي دفعة (${neverPaid.length})</div>
+        ${neverPaid.map(s=>`<div style="display:flex;justify-content:space-between;padding:5px 8px;background:var(--rd-bg);border-radius:6px;margin-bottom:4px;cursor:pointer" onclick="openDet('student','${s.id}')">
+          <span style="font-size:12px;font-weight:500">${s.name}</span>
+          <span style="font-size:11px;color:var(--rd-t)">${fmt(rem(s))} د.أ متبقي</span>
+        </div>`).join('')}
+      </div>`:''}
+      ${lateStudents.filter(s=>!neverPaid.includes(s)).length?`<div>
+        <div style="font-size:12px;font-weight:700;color:var(--am-t);margin-bottom:6px">دفعتهم متأخرة أكثر من 45 يوم (${lateStudents.filter(s=>!neverPaid.includes(s)).length})</div>
+        ${lateStudents.filter(s=>!neverPaid.includes(s)).map(s=>{
+          const last=(s.payments||[]).filter(p=>!p.autoTransfer&&!p.prefilled).sort((a,b)=>b.date>a.date?1:-1)[0];
+          const days=Math.floor((today-new Date(last.date))/(864e5));
+          return`<div style="display:flex;justify-content:space-between;padding:5px 8px;background:var(--am-bg);border-radius:6px;margin-bottom:4px;cursor:pointer" onclick="openDet('student','${s.id}')">
+            <span style="font-size:12px;font-weight:500">${s.name}</span>
+            <span style="font-size:11px;color:var(--am-t)">${days} يوم · ${fmt(rem(s))} د.أ</span>
+          </div>`;
+        }).join('')}
+      </div>`:''}
+    </div>`;
+  }
+
   if(grpRows.length){
     const sortedGrp=rptSort.col?sortArr(grpRows,rptSort.col,rptSort.dir):grpRows;
     html+=`<div class="card"><div class="ct">المجموعات</div>
