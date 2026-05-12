@@ -1738,6 +1738,7 @@ function renderStDet(id){
             ${p.note?'<div class="pnote">'+esc(p.note)+'</div>':''}
           </div>
           <div style="display:flex;flex-direction:column;gap:4px">
+            <button class="btn bsm" onclick="exportPayReceipt('student','${id}','${p.id}')" style="font-size:11px;background:var(--bl-bg);color:var(--bl-t)">🧾</button>
             <button class="btn bsm" onclick="editPay('student','${id}','${p.id}')">تعديل</button>
             <button class="btn bd bsm" onclick="delPay('student','${id}','${p.id}');renderStDet('${id}')">حذف</button>
           </div>
@@ -2035,6 +2036,7 @@ function renderScDet(id){
           </div>
           <div class="pm"><div>${p.date}</div><div class="prec">${p.receipt||'—'}</div>${p.note?'<div class="pnote">'+esc(p.note)+'</div>':''}</div>
           <div style="display:flex;flex-direction:column;gap:4px">
+            <button class="btn bsm" onclick="exportPayReceipt('school','${id}','${p.id}')" style="font-size:11px;background:var(--bl-bg);color:var(--bl-t)">🧾</button>
             <button class="btn bsm" onclick="editPay('school','${id}','${p.id}')">تعديل</button>
             <button class="btn bd bsm" onclick="delPay('school','${id}','${p.id}');renderScDet('${id}')">حذف</button>
           </div>
@@ -2101,6 +2103,7 @@ function renderCnDet(id){
           <div class="pl"><div class="pa">+ ${fmt(p.amount)} د.أ</div></div>
           <div class="pm"><div>${p.date}</div><div class="prec">${p.receipt||'—'}</div>${p.note?'<div class="pnote">'+esc(p.note)+'</div>':''}</div>
           <div style="display:flex;flex-direction:column;gap:4px">
+            <button class="btn bsm" onclick="exportPayReceipt('center','${id}','${p.id}')" style="font-size:11px;background:var(--bl-bg);color:var(--bl-t)">🧾</button>
             <button class="btn bsm" onclick="editPay('center','${id}','${p.id}')">تعديل</button>
             <button class="btn bd bsm" onclick="delPay('center','${id}','${p.id}');renderCnDet('${id}')">حذف</button>
           </div>
@@ -2822,6 +2825,22 @@ function showPublicView(){
 }
 
 // Add copy link button to student/school/center detail
+function exportPayReceipt(type,eid,pid){
+  // Find the specific payment and temporarily make it "last" for exportCard
+  const src=type==='student'?db.students:type==='school'?db.schools:db.centers;
+  const e=src[eid];if(!e)return;
+  // Reorder payments so target payment is first
+  const orig=e.payments?[...e.payments]:[];
+  const pidx=orig.findIndex(p=>p.id===pid);
+  if(pidx<0)return exportCard(type,eid);
+  // Temporarily reorder
+  const reordered=[orig[pidx],...orig.filter((_,i)=>i!==pidx)];
+  e.payments=reordered;
+  exportCard(type,eid);
+  // Restore original order
+  setTimeout(()=>{e.payments=orig;},100);
+}
+
 function exportCard(type,eid){
   const src=type==='student'?db.students:type==='school'?db.schools:db.centers;
   const e=src[eid];if(!e)return;
@@ -2834,7 +2853,7 @@ function exportCard(type,eid){
     lastPay=pays[0];
     thisPayAmt=lastPay?lastPay.amount:0;
     receiptNum=lastPay?.receipt||'—';
-    receiptDate=lastPay?new Date(lastPay.date).toLocaleDateString('ar-JO',{year:'numeric',month:'long',day:'numeric'}):'—';
+    receiptDate=lastPay?lastPay.date:'—';
     sem=lastPay?.semester==2?'فصل ثاني':'فصل أول';
   } else if(type==='school'){
     rp=totalPaid(e);tgt=e.total;r=tgt-rp;
@@ -2843,7 +2862,7 @@ function exportCard(type,eid){
     lastPay=pays[0];
     thisPayAmt=lastPay?lastPay.amount:0;
     receiptNum=lastPay?.receipt||'—';
-    receiptDate=lastPay?new Date(lastPay.date).toLocaleDateString('ar-JO',{year:'numeric',month:'long',day:'numeric'}):'—';
+    receiptDate=lastPay?lastPay.date:'—';
   } else {
     rp=totalPaid(e);tgt=e.customTotal||e.total||0;r=tgt-rp;
     name=e.name;
@@ -2851,7 +2870,7 @@ function exportCard(type,eid){
     lastPay=pays[0];
     thisPayAmt=lastPay?lastPay.amount:0;
     receiptNum=lastPay?.receipt||'—';
-    receiptDate=lastPay?new Date(lastPay.date).toLocaleDateString('ar-JO',{year:'numeric',month:'long',day:'numeric'}):'—';
+    receiptDate=lastPay?lastPay.date:'—';
   }
   const paidBefore=rp-thisPayAmt;
   const isDone=r<=0;
@@ -2942,7 +2961,7 @@ function exportCard(type,eid){
 
     <!-- Footer -->
     <div style="background:#f9fafb;padding:12px 24px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid #e5e7eb">
-      <div style="font-size:11px;color:#9ca3af">English Master</div>
+      <div style="font-size:11px;color:#9ca3af">Nash'at Kandah</div>
       <div style="font-size:11px;color:#6b7280;font-family:monospace">078-696-3399</div>
     </div>
   `;
