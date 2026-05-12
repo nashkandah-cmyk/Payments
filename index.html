@@ -212,6 +212,7 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
   </div>
   <button onclick="pullFromSheets()" class="btn bsm" title="تحديث من السحابة" style="font-size:16px;padding:5px 10px">🔄</button>
   <button onclick="backupData()" class="btn bsm" title="نسخة احتياطية" style="font-size:16px;padding:5px 10px">💾</button>
+  <button onclick="restoreData()" class="btn bsm" title="استعادة من ملف" style="font-size:16px;padding:5px 10px">📂</button>
   <button onclick="forceRecalc()" class="btn bsm ba" title="ترحيل الفوائض يدوياً" style="font-size:13px;padding:5px 10px">↪ ترحيل</button>
 </header>
 
@@ -222,6 +223,7 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
   <button class="nb" onclick="TAB('students')">👥 الطلاب</button>
   <button class="nb" onclick="TAB('centers')">🏢 المراكز</button>
   <button class="nb" onclick="TAB('schools')">🏫 المدارس</button>
+  <button class="nb" onclick="TAB('dosiat')">📚 الدوسيات</button>
   <button class="nb" onclick="TAB('reports')">📊 التقارير</button>
 </nav>
 
@@ -513,16 +515,8 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
   <div id="sched-body"></div>
 </div>
 
+<!-- REPORTS TAB -->
 <div id="tab-reports" style="display:none">
-  <div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-      <div class="ct" style="margin:0">سعر الدوسيات حسب الجيل</div>
-      <button class="btn bp bsm" onclick="saveDosiatPrices()">حفظ</button>
-    </div>
-    <div id="dosiat-prices-form"></div>
-    <div id="dosiat-save-al" style="margin-top:4px"></div>
-    <div style="font-size:11px;color:var(--tx3);margin-top:4px">يُطبَّق تلقائياً على كل مجموعات نفس الجيل</div>
-  </div>
   <div class="card">
     <div class="ct">إعدادات التقرير</div>
     <div class="fg fg2" style="margin-bottom:8px">
@@ -550,6 +544,26 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
     </div>
   </div>
   <div id="rpt-out"></div>
+</div>
+
+<!-- DOSIAT TAB -->
+<div id="tab-dosiat" style="display:none">
+  <div class="card">
+    <div class="ct">أسعار الدوسيات لكل وحدة</div>
+    <div style="font-size:11px;color:var(--tx3);margin-bottom:10px">حدد سعر كل وحدة بشكل منفرد</div>
+    <div id="dosiat-unit-prices"></div>
+    <div id="dosiat-save-al" style="margin-top:4px"></div>
+    <button class="btn bp" onclick="saveDosiatUnitPrices()" style="margin-top:8px">حفظ الأسعار</button>
+  </div>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="ct" style="margin:0">تتبع دفع الدوسيات</div>
+      <select id="dosiat-unit-filter" onchange="renderDosiatReport()" style="font-size:12px">
+        <option value="">كل الوحدات</option>
+      </select>
+    </div>
+    <div id="dosiat-report-body"></div>
+  </div>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════════
@@ -995,10 +1009,10 @@ function closeModal(e){if(!e||e.target.id==='modal')document.getElementById('mod
 
 // ── TABS ──────────────────────────────────────────────────────────────────────
 function TAB(t){
-  ['students','add-student','groups','add-group','pay','schools','centers','schedule','reports','detail'].forEach(x=>{
+  ['students','add-student','groups','add-group','pay','schools','centers','schedule','dosiat','reports','detail'].forEach(x=>{
     const e=document.getElementById('tab-'+x);if(e)e.style.display='none';
   });
-  const mainTabs=['schedule','pay','groups','students','centers','schools','reports'];
+  const mainTabs=['schedule','pay','groups','students','centers','schools','dosiat','reports'];
   document.querySelectorAll('.nb').forEach((b,i)=>b.classList.toggle('on',mainTabs.indexOf(t)===i));
   const el=document.getElementById('tab-'+t);if(el)el.style.display='block';
   if(t==='students'){popGrpFilter();renderStudents('');}
@@ -1008,7 +1022,8 @@ function TAB(t){
   if(t==='schools')renderSchools();
   if(t==='centers')renderCenters();
   if(t==='schedule'){renderSchedule();}
-  if(t==='reports'){initRptDates();buildRpt();renderDosiatPricesForm();}
+  if(t==='dosiat'){renderDosiatTab();}
+  if(t==='reports'){initRptDates();buildRpt();}
   if(t==='pay')resetPW();
 }
 
@@ -2197,7 +2212,42 @@ function buildRpt(){
   const dosiatTotal=students.filter(s=>s.groupId).reduce((a,s)=>{const g=db.groups[s.groupId];return a+(getDosiatPrice(g)*(g?.totalUnits||10));},0);
   const dosiatCollected=students.filter(s=>s.groupId).reduce((a,s)=>{const g=db.groups[s.groupId];return a+(getDosiatPrice(g)*(s.dosiatPaid||[]).length);},0);
 
-  let html=`<div class="card">
+  // Late payments - always show first
+  const todayRpt=new Date();
+  const lateStudentsRpt=students.filter(s=>{
+    if(rem(s)<=0)return false;
+    const pays=(s.payments||[]).filter(p=>!p.autoTransfer&&!p.prefilled);
+    if(!pays.length)return target(s)>0;
+    const last=pays.sort((a,b)=>b.date>a.date?1:-1)[0];
+    return Math.floor((todayRpt-new Date(last.date))/(864e5))>45;
+  });
+  const neverPaidRpt=students.filter(s=>rem(s)>0&&!(s.payments||[]).filter(p=>!p.autoTransfer&&!p.prefilled).length);
+  let html='';
+  if(lateStudentsRpt.length||neverPaidRpt.length){
+    html+=`<div class="card">
+      <div class="ct">⚠ تنبيهات الدفعات</div>
+      ${neverPaidRpt.length?`<div style="margin-bottom:10px">
+        <div style="font-size:12px;font-weight:700;color:var(--rd-t);margin-bottom:6px">لم يدفع أي دفعة (${neverPaidRpt.length})</div>
+        ${neverPaidRpt.map(s=>`<div style="display:flex;justify-content:space-between;padding:5px 8px;background:var(--rd-bg);border-radius:6px;margin-bottom:4px;cursor:pointer" onclick="openDet('student','${s.id}')">
+          <span style="font-size:12px;font-weight:500">${s.name}</span>
+          <span style="font-size:11px;color:var(--rd-t)">${fmt(rem(s))} د.أ متبقي</span>
+        </div>`).join('')}
+      </div>`:''}
+      ${lateStudentsRpt.filter(s=>!neverPaidRpt.includes(s)).length?`<div>
+        <div style="font-size:12px;font-weight:700;color:var(--am-t);margin-bottom:6px">دفعتهم متأخرة أكثر من 45 يوم (${lateStudentsRpt.filter(s=>!neverPaidRpt.includes(s)).length})</div>
+        ${lateStudentsRpt.filter(s=>!neverPaidRpt.includes(s)).map(s=>{
+          const lastP=(s.payments||[]).filter(p=>!p.autoTransfer&&!p.prefilled).sort((a,b)=>b.date>a.date?1:-1)[0];
+          const days=Math.floor((todayRpt-new Date(lastP.date))/(864e5));
+          return`<div style="display:flex;justify-content:space-between;padding:5px 8px;background:var(--am-bg);border-radius:6px;margin-bottom:4px;cursor:pointer" onclick="openDet('student','${s.id}')">
+            <span style="font-size:12px;font-weight:500">${s.name}</span>
+            <span style="font-size:11px;color:var(--am-t)">${days} يوم · ${fmt(rem(s))} د.أ</span>
+          </div>`;
+        }).join('')}
+      </div>`:''}
+    </div>`;
+  }
+
+  html+=`<div class="card">
     <div class="ct">ملخص إجمالي</div>
     <div class="mts m4">
       <div class="mt"><div class="ml">محصّل في الفترة</div><div class="mv g">${fmt(totalColl)}<span style="font-size:10px"> د.أ</span></div></div>
@@ -2222,40 +2272,6 @@ function buildRpt(){
       tgt:gs.reduce((a,s)=>a+target(s),0),
       rem:gs.reduce((a,s)=>a+rem(s),0)};
   });
-  // Late payments section
-  const today=new Date();
-  const lateStudents=students.filter(s=>{
-    if(rem(s)<=0)return false;
-    const pays=(s.payments||[]).filter(p=>!p.autoTransfer&&!p.prefilled);
-    if(!pays.length)return target(s)>0;
-    const last=pays.sort((a,b)=>b.date>a.date?1:-1)[0];
-    return Math.floor((today-new Date(last.date))/(864e5))>45;
-  });
-  const neverPaid=students.filter(s=>rem(s)>0&&!(s.payments||[]).filter(p=>!p.autoTransfer&&!p.prefilled).length);
-  if(lateStudents.length||neverPaid.length){
-    html+=`<div class="card">
-      <div class="ct">⚠ تنبيهات الدفعات</div>
-      ${neverPaid.length?`<div style="margin-bottom:10px">
-        <div style="font-size:12px;font-weight:700;color:var(--rd-t);margin-bottom:6px">لم يدفع أي دفعة (${neverPaid.length})</div>
-        ${neverPaid.map(s=>`<div style="display:flex;justify-content:space-between;padding:5px 8px;background:var(--rd-bg);border-radius:6px;margin-bottom:4px;cursor:pointer" onclick="openDet('student','${s.id}')">
-          <span style="font-size:12px;font-weight:500">${s.name}</span>
-          <span style="font-size:11px;color:var(--rd-t)">${fmt(rem(s))} د.أ متبقي</span>
-        </div>`).join('')}
-      </div>`:''}
-      ${lateStudents.filter(s=>!neverPaid.includes(s)).length?`<div>
-        <div style="font-size:12px;font-weight:700;color:var(--am-t);margin-bottom:6px">دفعتهم متأخرة أكثر من 45 يوم (${lateStudents.filter(s=>!neverPaid.includes(s)).length})</div>
-        ${lateStudents.filter(s=>!neverPaid.includes(s)).map(s=>{
-          const last=(s.payments||[]).filter(p=>!p.autoTransfer&&!p.prefilled).sort((a,b)=>b.date>a.date?1:-1)[0];
-          const days=Math.floor((today-new Date(last.date))/(864e5));
-          return`<div style="display:flex;justify-content:space-between;padding:5px 8px;background:var(--am-bg);border-radius:6px;margin-bottom:4px;cursor:pointer" onclick="openDet('student','${s.id}')">
-            <span style="font-size:12px;font-weight:500">${s.name}</span>
-            <span style="font-size:11px;color:var(--am-t)">${days} يوم · ${fmt(rem(s))} د.أ</span>
-          </div>`;
-        }).join('')}
-      </div>`:''}
-    </div>`;
-  }
-
   if(grpRows.length){
     const sortedGrp=rptSort.col?sortArr(grpRows,rptSort.col,rptSort.dir):grpRows;
     html+=`<div class="card"><div class="ct">المجموعات</div>
@@ -2932,6 +2948,131 @@ function exportCard(type,eid){
     document.body.removeChild(card);
     alert('حدث خطأ أثناء إنشاء الصورة');
   });
+}
+
+// ── RESTORE FROM JSON ────────────────────────────────────────────────────────
+function restoreData(){
+  const inp=document.createElement('input');
+  inp.type='file';inp.accept='.json';
+  inp.onchange=function(e){
+    const file=e.target.files[0];if(!file)return;
+    const reader=new FileReader();
+    reader.onload=function(ev){
+      try{
+        const restored=JSON.parse(ev.target.result);
+        if(!restored.students||!restored.groups)throw new Error('ملف غير صالح');
+        if(!confirm('هل تريد استعادة البيانات؟ سيتم استبدال البيانات الحالية بالكامل.'))return;
+        db=restored;
+        saveDB();
+        location.reload();
+      }catch(err){alert('خطأ في الملف: '+err.message);}
+    };
+    reader.readAsText(file);
+  };
+  inp.click();
+}
+
+// ── DOSIAT TAB ────────────────────────────────────────────────────────────────
+function getDosiatUnitPrice(unit){
+  return(db.settings?.dosiatUnitPrices||{})[unit]||
+         (()=>{
+           // Fallback: try to get from any group's generation price
+           const anyGrp=Object.values(db.groups)[0];
+           if(!anyGrp)return 0;
+           return(db.settings?.dosiatPrices||{})[anyGrp.generation]||0;
+         })();
+}
+
+function renderDosiatTab(){
+  // Build unit price inputs
+  const maxUnits=Math.max(...Object.values(db.groups).map(g=>g.totalUnits||10),10);
+  const prices=db.settings?.dosiatUnitPrices||{};
+  const form=document.getElementById('dosiat-unit-prices');
+  if(form){
+    form.innerHTML='<div class="fg fg4">'+
+      Array.from({length:maxUnits},(_,i)=>{
+        const u=i+1;
+        return'<div class="f"><label>وحدة '+u+'</label>'+
+          '<input type="text" inputmode="decimal" id="dup-'+u+'" value="'+(prices[u]||'')+'" placeholder="0 د.أ"/></div>';
+      }).join('')+
+    '</div>';
+  }
+
+  // Build unit filter
+  const filter=document.getElementById('dosiat-unit-filter');
+  if(filter){
+    filter.innerHTML='<option value="">كل الوحدات</option>'+
+      Array.from({length:maxUnits},(_,i)=>'<option value="'+(i+1)+'">وحدة '+(i+1)+'</option>').join('');
+  }
+
+  renderDosiatReport();
+}
+
+function saveDosiatUnitPrices(){
+  if(!db.settings)db.settings={};
+  if(!db.settings.dosiatUnitPrices)db.settings.dosiatUnitPrices={};
+  const maxUnits=Math.max(...Object.values(db.groups).map(g=>g.totalUnits||10),10);
+  for(let u=1;u<=maxUnits;u++){
+    const val=parseFloat(document.getElementById('dup-'+u)?.value)||0;
+    db.settings.dosiatUnitPrices[u]=val;
+  }
+  saveDB();
+  al('dosiat-save-al','✓ تم حفظ الأسعار','s');
+  renderDosiatReport();
+}
+
+function renderDosiatReport(){
+  const body=document.getElementById('dosiat-report-body');
+  if(!body)return;
+  const filterUnit=document.getElementById('dosiat-unit-filter')?.value;
+  const unitNum=filterUnit?parseInt(filterUnit):null;
+  const prices=db.settings?.dosiatUnitPrices||{};
+  const allStudents=Object.values(db.students).filter(s=>!s.withdrawn);
+  const maxUnits=Math.max(...Object.values(db.groups).map(g=>g.totalUnits||10),10);
+
+  if(unitNum){
+    // Show specific unit - who paid and who didn't
+    const price=prices[unitNum]||0;
+    const paid=allStudents.filter(s=>(s.dosiatPaid||[]).includes(unitNum));
+    const unpaid=allStudents.filter(s=>!(s.dosiatPaid||[]).includes(unitNum));
+    body.innerHTML=
+      '<div style="display:flex;gap:8px;margin-bottom:8px">'+
+        '<div style="flex:1;background:var(--gr-bg);border-radius:var(--rs);padding:10px;text-align:center">'+
+          '<div style="font-size:11px;color:var(--tx3)">دفعوا</div>'+
+          '<div style="font-size:18px;font-weight:700;color:var(--gr-t)">'+paid.length+'</div>'+
+        '</div>'+
+        '<div style="flex:1;background:var(--rd-bg);border-radius:var(--rs);padding:10px;text-align:center">'+
+          '<div style="font-size:11px;color:var(--tx3)">لم يدفعوا</div>'+
+          '<div style="font-size:18px;font-weight:700;color:var(--rd-t)">'+unpaid.length+'</div>'+
+        '</div>'+
+        (price?'<div style="flex:1;background:var(--sur2);border-radius:var(--rs);padding:10px;text-align:center">'+
+          '<div style="font-size:11px;color:var(--tx3)">المتبقي</div>'+
+          '<div style="font-size:16px;font-weight:700">'+fmt(unpaid.length*price)+' د.أ</div>'+
+        '</div>':'')+'</div>'+
+      (unpaid.length?'<div style="font-size:12px;font-weight:700;color:var(--rd-t);margin-bottom:6px">لم يدفعوا وحدة '+unitNum+':</div>'+
+        unpaid.map(s=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--rd-bg);border-radius:6px;margin-bottom:4px;cursor:pointer" onclick="openDet(&quot;student&quot;,&quot;'+s.id+'&quot;)">'+
+          '<span style="font-size:13px;font-weight:500">'+s.name+'</span>'+
+          '<span style="font-size:11px;color:var(--tx3)">'+(s.groupName||'منفرد')+'</span>'+
+        '</div>').join(''):'<div class="al al-s">✓ جميع الطلاب دفعوا وحدة '+unitNum+'</div>');
+  } else {
+    // Show all units summary
+    body.innerHTML=Array.from({length:maxUnits},(_,i)=>{
+      const u=i+1;
+      const price=prices[u]||0;
+      const paidCnt=allStudents.filter(s=>(s.dosiatPaid||[]).includes(u)).length;
+      const unpaidCnt=allStudents.length-paidCnt;
+      const pct=allStudents.length?Math.round((paidCnt/allStudents.length)*100):0;
+      return'<div style="padding:10px;border:1px solid var(--bdr);border-radius:var(--rs);margin-bottom:8px">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'+
+          '<div style="font-weight:600">وحدة '+u+(price?' <span style="font-size:11px;color:var(--tx3);font-weight:400">'+price+' د.أ</span>':'')+'</div>'+
+          '<div style="font-size:12px;color:var(--tx3)">'+paidCnt+'/'+allStudents.length+' دفعوا</div>'+
+        '</div>'+
+        '<div class="pw"><div class="pb" style="width:'+pct+'%;background:'+(pct===100?'var(--gr-t)':pct>50?'var(--am-t)':'var(--rd-t)')+'"></div></div>'+
+        (unpaidCnt>0?'<div style="font-size:11px;color:var(--rd-t);margin-top:4px;cursor:pointer" onclick="document.getElementById(&quot;dosiat-unit-filter&quot;).value=&quot;'+u+'&quot;;renderDosiatReport()">'+unpaidCnt+' لم يدفعوا ←</div>':
+        '<div style="font-size:11px;color:var(--gr-t);margin-top:4px">✓ الكل دفع</div>')+
+      '</div>';
+    }).join('');
+  }
 }
 
 function backupData(){
