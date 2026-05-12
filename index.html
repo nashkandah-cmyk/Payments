@@ -182,6 +182,13 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
   .m3,.m4,.m5{grid-template-columns:1fr 1fr}
   .eseg{grid-template-columns:1fr}
 }
+@media print{
+  header,nav,.btn,.nb,#global-srch,#global-results{display:none!important}
+  .main{padding:0;max-width:100%}
+  .card{break-inside:avoid;box-shadow:none;border:1px solid #ddd}
+  .item{break-inside:avoid}
+  body{background:#fff}
+}
 </style>
 </head>
 <body>
@@ -213,7 +220,7 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
   <button onclick="pullFromSheets()" class="btn bsm" title="تحديث من السحابة" style="font-size:16px;padding:5px 10px">🔄</button>
   <button onclick="backupData()" class="btn bsm" title="نسخة احتياطية" style="font-size:16px;padding:5px 10px">💾</button>
   <button onclick="restoreData()" class="btn bsm" title="استعادة من ملف" style="font-size:16px;padding:5px 10px">📂</button>
-  <button onclick="forceRecalc()" class="btn bsm ba" title="ترحيل الفوائض يدوياً" style="font-size:13px;padding:5px 10px">↪ ترحيل</button>
+
 </header>
 
 <nav>
@@ -1968,6 +1975,7 @@ function saveEditPay(type,eid,pid){
   else renderCnDet(eid);
 }
 function delPay(type,eid,pid){
+  if(!confirm('حذف هذه الدفعة نهائياً؟'))return;
   const src=type==='student'?db.students:type==='school'?db.schools:db.centers;
   if(src[eid])src[eid].payments=src[eid].payments.filter(p=>p.id!==pid);
   saveDB();
@@ -2238,14 +2246,7 @@ function buildRpt(){
       <div class="mt"><div class="ml">طلاب / مدارس / مراكز</div><div class="mv" style="font-size:13px">${fmt(stPaid)} / ${fmt(scPaid)} / ${fmt(cnPaid)}</div></div>
     </div>
   </div>
-  <div class="card">
-    <div class="ct">ثمن الدوسيات</div>
-    <div class="mts m3">
-      <div class="mt"><div class="ml">إجمالي المطلوب</div><div class="mv">${fmt(dosiatTotal)} <span style="font-size:10px">د.أ</span></div></div>
-      <div class="mt"><div class="ml">المحصّل</div><div class="mv g">${fmt(dosiatCollected)} <span style="font-size:10px">د.أ</span></div></div>
-      <div class="mt"><div class="ml">المتبقي</div><div class="mv r">${fmt(dosiatTotal-dosiatCollected)} <span style="font-size:10px">د.أ</span></div></div>
-    </div>
-  </div>`;
+`;
 
   const grpRows=obj(db.groups).filter(g=>!q||g.name.toLowerCase().includes(q)).map(g=>{
     const gs=obj(db.students).filter(s=>s.groupId===g.id);
@@ -2529,9 +2530,11 @@ function renderDosiatCard(s,sid){
   const units=g?.totalUnits||s.totalUnits||10;
   const unitPrices=db.settings?.dosiatUnitPrices||{};
   const hasAnyPrice=Object.keys(unitPrices).length>0||g?.dosiatPrice||s.dosiatPrice;
-  if(!hasAnyPrice)return '<div style="font-size:12px;color:var(--tx3);text-align:center;padding:6px">لم يُحدَّد سعر الدوسيات — أضفه في تاب الدوسيات</div>';
+  const dosUnitPrices=db.settings?.dosiatUnitPrices||{};
+  const hasUnitPrices=Object.values(dosUnitPrices).some(p=>p>0);
+  if(!hasAnyPrice&&!hasUnitPrices)return '<div style="font-size:12px;color:var(--tx3);text-align:center;padding:6px">لم يُحدَّد سعر الدوسيات — أضفه في تاب الدوسيات</div>';
   const paid=s.dosiatPaid||[];
-  const getUP=u=>(db.settings?.dosiatUnitPrices||{})[u]||g?.dosiatPrice||s.dosiatPrice||0;
+  const getUP=u=>(db.settings?.dosiatUnitPrices||{})[u]||(()=>{const gen=g?.generation||s.generation||'';return (db.settings?.dosiatPrices||{})[gen]||g?.dosiatPrice||s.dosiatPrice||0;})();
   const totalDue=Array.from({length:units},(_,i)=>getUP(i+1)).reduce((a,b)=>a+b,0);
   const totalPaidD=paid.reduce((a,u)=>a+getUP(u),0);
   return`<div class="card">
@@ -3103,6 +3106,7 @@ function getEntityColor(entityId,type){
   if(!db.schedule.groupColors[entityId]){
     const usedCount=Object.keys(db.schedule.groupColors).length;
     db.schedule.groupColors[entityId]=GRP_COLORS[usedCount%GRP_COLORS.length];
+    saveDB(); // persist color assignment
   }
   return db.schedule.groupColors[entityId];
 }
