@@ -3096,65 +3096,56 @@ function dropSession(id){
 }
 
 // Show schedule in group detail
+function expandSessions(sessions){
+  // Expand multiday sessions into individual rows per day
+  const rows=[];
+  sessions.forEach(se=>{
+    rows.push({...se,_displayDay:se.day,_displayTime:se.time});
+    if(se.recurrence==='multiday'&&se.extraDays?.length){
+      se.extraDays.forEach(d=>{
+        rows.push({...se,_displayDay:d,_displayTime:(se.extraDayTimes||{})[d]||se.time});
+      });
+    }
+  });
+  return rows.sort((a,b)=>DAYS_EN.indexOf(a._displayDay)-DAYS_EN.indexOf(b._displayDay)||a._displayTime.localeCompare(b._displayTime));
+}
+
+function sessRowHtml(se,color,onHold,refreshFn){
+  const dayLabel=DAYS_AR[DAYS_EN.indexOf(se._displayDay)];
+  const isHold=se.status==='hold'||onHold;
+  return'<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--sur2);border-radius:var(--rs);margin-bottom:5px;opacity:'+(isHold?'0.5':'1')+'">'+
+    '<div style="width:3px;height:32px;border-radius:2px;background:'+color+';flex-shrink:0"></div>'+
+    '<div style="flex:1">'+
+      '<div style="font-size:13px;font-weight:600">'+dayLabel+
+        ' <span style="font-size:12px;font-weight:400;color:var(--tx3)">'+se._displayTime+'</span>'+
+        (isHold?'<span style="font-size:10px;background:var(--am-bg);color:var(--am-t);padding:1px 5px;border-radius:99px;margin-right:5px">مؤجّل</span>':'')+
+        (se.recurrence==='once'?'<span style="font-size:10px;background:var(--am-bg);color:var(--am-t);padding:1px 5px;border-radius:99px;margin-right:5px">📌</span>':'')+
+      '</div>'+
+      (se.location?'<div style="font-size:11px;color:var(--tx3)">📍 '+se.location+'</div>':'')+
+    '</div>'+
+    '<button class="btn bsm" onclick="showEditSession(&quot;'+se.id+'&quot;)" style="font-size:10px;padding:2px 6px">✏</button>'+
+    '<button class="btn bsm" onclick="toggleHoldSession(&quot;'+se.id+'&quot;);'+refreshFn+'" style="font-size:10px;padding:2px 6px">'+(isHold?'▶':'⏸')+'</button>'+
+  '</div>';
+}
+
 function renderStudentScheduleCard(s,sid){
   initScheduleDb();
-  const sess=Object.values(db.schedule.sessions).filter(se=>{
-    if(se.entityType!=='student'||se.entityId!==sid)return false;
-    return true;
-  }).sort((a,b)=>DAYS_EN.indexOf(a.day)-DAYS_EN.indexOf(b.day)||a.time.localeCompare(b.time));
-  if(!sess.length)return '';
+  const rawSess=Object.values(db.schedule.sessions).filter(se=>se.entityType==='student'&&se.entityId===sid);
+  if(!rawSess.length)return '';
   const color=getEntityColor(sid,'student');
-  return'<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'+
-    '<div class="ct" style="margin:0">📅 جدول الحصص</div></div>'+
-    sess.map(se=>{
-      const dayLabel=DAYS_AR[DAYS_EN.indexOf(se.day)];
-      const isHold=se.status==='hold';
-      // Extra days for multiday
-      const extraRows=(se.recurrence==='multiday'&&se.extraDays||[]).map(d=>{
-        const t=(se.extraDayTimes||{})[d]||se.time;
-        const dl=DAYS_AR[DAYS_EN.indexOf(d)];
-        return'<div style="font-size:11px;color:var(--tx3);margin-top:3px;padding-right:14px">↳ '+dl+' · '+t+'</div>';
-      }).join('');
-      return'<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--sur2);border-radius:var(--rs);margin-bottom:5px;opacity:'+(isHold?'0.5':'1')+'">'+
-        '<div style="width:3px;height:32px;border-radius:2px;background:'+color+';flex-shrink:0"></div>'+
-        '<div style="flex:1">'+
-          '<div style="font-size:13px;font-weight:600">'+dayLabel+
-            ' <span style="font-size:12px;font-weight:400;color:var(--tx3)">'+se.time+'</span>'+
-            (se.recurrence==='multiday'?'<span style="font-size:10px;background:var(--bl-bg);color:var(--bl-t);padding:1px 5px;border-radius:99px;margin-right:5px">أيام متعددة</span>':'')+
-            (isHold?'<span style="font-size:10px;background:var(--am-bg);color:var(--am-t);padding:1px 5px;border-radius:99px;margin-right:5px">مؤجّل</span>':'')+
-          '</div>'+
-          (se.location?'<div style="font-size:11px;color:var(--tx3)">📍 '+se.location+'</div>':'')+
-          extraRows+
-        '</div>'+
-        '<button class="btn bsm" onclick="showEditSession(&quot;'+se.id+'&quot;)" style="font-size:10px;padding:2px 6px">✏</button>'+
-        '<button class="btn bsm" onclick="toggleHoldSession(&quot;'+se.id+'&quot;);renderStDet(&quot;'+sid+'&quot;)" style="font-size:10px;padding:2px 6px">'+(isHold?'▶':'⏸')+'</button>'+
-      '</div>';
-    }).join('')+
+  const rows=expandSessions(rawSess);
+  return'<div class="card"><div class="ct" style="margin-bottom:10px">📅 جدول الحصص</div>'+
+    rows.map(se=>sessRowHtml(se,color,false,'renderStDet(&quot;'+sid+'&quot;)')).join('')+
   '</div>';
 }
 
 function renderGroupSchedule(gid){
   initScheduleDb();
-  const sess=Object.values(db.schedule.sessions)
-    .filter(s=>s.entityId===gid&&s.entityType==='group')
-    .sort((a,b)=>DAYS_EN.indexOf(a.day)-DAYS_EN.indexOf(b.day)||a.time.localeCompare(b.time));
-  if(!sess.length)return'<div style="font-size:12px;color:var(--tx3);text-align:center;padding:8px">لا توجد حصص مجدولة — أضفها من قسم الجدول</div>';
+  const rawSess=Object.values(db.schedule.sessions).filter(s=>s.entityId===gid&&s.entityType==='group');
+  if(!rawSess.length)return'<div style="font-size:12px;color:var(--tx3);text-align:center;padding:8px">لا توجد حصص مجدولة — أضفها من قسم الجدول</div>';
   const color=getEntityColor(gid,'group');
-  return sess.map(s=>{
-    const dayLabel=DAYS_AR[DAYS_EN.indexOf(s.day)];
-    const isHold=s.status==='hold';
-    return'<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--sur2);border-radius:var(--rs);margin-bottom:5px;opacity:'+(isHold?'0.5':'1')+'">'+
-      '<div style="width:3px;height:28px;border-radius:2px;background:'+color+'"></div>'+
-      '<div style="flex:1">'+
-        '<span style="font-size:12px;font-weight:600">'+dayLabel+'</span>'+
-        '<span style="font-size:12px;color:var(--tx3);margin-right:8px">'+s.time+'</span>'+
-        (s.location?'<span style="font-size:11px;color:var(--tx3)">· '+s.location+'</span>':'')+
-        (isHold?'<span style="font-size:10px;background:var(--am-bg);color:var(--am-t);padding:1px 5px;border-radius:99px;margin-right:5px">مؤجّل</span>':'')+
-      '</div>'+
-      '<button class="btn bsm" onclick="showEditSession(&quot;'+s.id+'&quot;)" style="font-size:10px;padding:2px 6px">✏</button>'+
-      '<button class="btn bsm" onclick="toggleHoldSession(&quot;'+s.id+'&quot;);renderGrpDet(&quot;'+gid+'&quot;)" style="font-size:10px;padding:2px 6px">'+(isHold?'▶':'⏸')+'</button>'+
-    '</div>';
-  }).join('');
+  const rows=expandSessions(rawSess);
+  return rows.map(se=>sessRowHtml(se,color,false,'renderGrpDet(&quot;'+gid+'&quot;)')).join('');
 }
 
 checkPublicView();
