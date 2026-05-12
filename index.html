@@ -205,9 +205,13 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
   <div class="hdr-ico">📋</div>
   <div style="flex:1">
     <div class="hdr-title">إدارة الدفعات المالية</div>
+    <input id="global-srch" placeholder="🔍 بحث سريع..." oninput="globalSearch(this.value)" 
+      style="width:100%;margin-top:4px;padding:5px 10px;border-radius:20px;border:1px solid var(--bdr);background:var(--sur2);font-size:12px;color:var(--tx1);outline:none"/>
+    <div id="global-results" style="display:none;position:absolute;top:70px;right:16px;left:16px;z-index:999;background:var(--sur1);border:1px solid var(--bdr);border-radius:var(--rs);box-shadow:0 4px 20px rgba(0,0,0,.15);max-height:300px;overflow-y:auto"></div>
     <div class="hdr-sub" id="hdr-sub">جاري التحميل...</div>
   </div>
   <button onclick="pullFromSheets()" class="btn bsm" title="تحديث من السحابة" style="font-size:16px;padding:5px 10px">🔄</button>
+  <button onclick="backupData()" class="btn bsm" title="نسخة احتياطية" style="font-size:16px;padding:5px 10px">💾</button>
   <button onclick="forceRecalc()" class="btn bsm ba" title="ترحيل الفوائض يدوياً" style="font-size:13px;padding:5px 10px">↪ ترحيل</button>
 </header>
 
@@ -907,6 +911,57 @@ function paidInRange(e,d1,d2){
   }).reduce((a,p)=>a+p.amount,0);
 }
 function genId(){return '_'+Math.random().toString(36).slice(2,9);}
+
+// ── GLOBAL SEARCH ────────────────────────────────────────────────────────────
+function globalSearch(q){
+  const box=document.getElementById('global-results');
+  if(!q||q.length<2){box.style.display='none';return;}
+  const ql=q.toLowerCase();
+  const results=[];
+  // Students
+  Object.values(db.students).forEach(s=>{
+    if(s.name.toLowerCase().includes(ql)||(s.id||'').includes(ql))
+      results.push({type:'student',id:s.id,label:s.name,sub:s.groupName||'طالب منفرد',icon:'👤'});
+  });
+  // Groups
+  Object.values(db.groups).forEach(g=>{
+    if(g.name.toLowerCase().includes(ql)||(g.generation||'').includes(ql))
+      results.push({type:'group',id:g.id,label:g.name,sub:'مجموعة '+(g.generation||''),icon:'🗂'});
+  });
+  // Schools
+  Object.values(db.schools).forEach(s=>{
+    if(s.name.toLowerCase().includes(ql))
+      results.push({type:'school',id:s.id,label:s.name,sub:'مدرسة',icon:'🏫'});
+  });
+  // Centers
+  Object.values(db.centers).forEach(c=>{
+    if(c.name.toLowerCase().includes(ql))
+      results.push({type:'center',id:c.id,label:c.name,sub:'مركز',icon:'🏢'});
+  });
+  if(!results.length){
+    box.style.display='block';
+    box.innerHTML='<div style="padding:12px;text-align:center;color:var(--tx3);font-size:13px">لا توجد نتائج</div>';
+    return;
+  }
+  box.style.display='block';
+  box.innerHTML=results.slice(0,8).map(r=>
+    '<div onclick="goToResult(&quot;'+r.type+'&quot;,&quot;'+r.id+'&quot;)" style="padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--bdr)" onmouseover="this.style.background=&quot;var(--sur2)&quot;" onmouseout="this.style.background=&quot;&quot;">'+
+      '<span style="font-size:18px">'+r.icon+'</span>'+
+      '<div><div style="font-size:13px;font-weight:600">'+r.label+'</div>'+
+      '<div style="font-size:11px;color:var(--tx3)">'+r.sub+'</div></div>'+
+    '</div>'
+  ).join('');
+}
+function goToResult(type,id){
+  document.getElementById('global-results').style.display='none';
+  document.getElementById('global-srch').value='';
+  if(type==='group')openGrpDetail(id);
+  else openDet(type,id);
+}
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#global-srch')&&!e.target.closest('#global-results'))
+    document.getElementById('global-results').style.display='none';
+});
 
 // ── AUTO RECEIPT NUMBERING ──────────────────────────────────────────────────
 function genReceipt(type){
@@ -2568,6 +2623,39 @@ function toggleInst(sid,iid,checked){
 }
 
 // ── PUBLIC VIEW (read-only via URL params) ────────────────────────────────────
+// ── LATE PAYMENTS NOTIFICATION ───────────────────────────────────────────────
+function checkLatePayments(){
+  const today=new Date();
+  const month=today.getMonth()+1;
+  const late=[];
+  Object.values(db.students).forEach(s=>{
+    if(s.withdrawn)return;
+    const r=rem(s);
+    if(r<=0)return;
+    const pays=s.payments||[];
+    if(!pays.length&&target(s)>0){late.push({name:s.name,type:'لم يدفع أي دفعة'});return;}
+    const lastPay=pays.filter(p=>!p.autoTransfer&&!p.prefilled).sort((a,b)=>b.date>a.date?1:-1)[0];
+    if(!lastPay)return;
+    const lastDate=new Date(lastPay.date);
+    const diffDays=Math.floor((today-lastDate)/(1000*60*60*24));
+    if(diffDays>45)late.push({name:s.name,type:'آخر دفعة منذ '+diffDays+' يوم'});
+  });
+  if(!late.length)return;
+  const notif=document.createElement('div');
+  notif.style.cssText='position:fixed;bottom:16px;left:16px;right:16px;background:var(--rd-bg);border:1px solid var(--rd-t);border-radius:var(--rs);padding:12px 14px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.15)';
+  notif.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'+
+    '<div style="font-size:13px;font-weight:700;color:var(--rd-t)">⚠ '+late.length+' طالب دفعاتهم متأخرة</div>'+
+    '<button onclick="this.parentElement.parentElement.remove()" style="background:none;border:none;font-size:16px;cursor:pointer;color:var(--tx3)">✕</button>'+
+  '</div>'+
+  late.slice(0,5).map(l=>'<div style="font-size:12px;color:var(--tx2);padding:2px 0">• '+l.name+' — '+l.type+'</div>').join('')+
+  (late.length>5?'<div style="font-size:11px;color:var(--tx3);margin-top:4px">و '+(late.length-5)+' آخرين...</div>':'')+
+  '<div onclick="TAB(&quot;reports&quot;);this.parentElement.remove()" style="margin-top:8px;font-size:12px;color:var(--rd-t);cursor:pointer;font-weight:600">عرض الكل في التقارير ←</div>';
+  document.body.appendChild(notif);
+  setTimeout(()=>notif.style.opacity='0',8000);
+  setTimeout(()=>notif.remove(),8500);
+  notif.style.transition='opacity .5s';
+}
+
 function checkPublicView(){
   const params=new URLSearchParams(window.location.search);
   const sid=params.get('s'),scid=params.get('sc'),cnid=params.get('cn');
@@ -2801,6 +2889,16 @@ function exportCard(type,eid){
     document.body.removeChild(card);
     alert('حدث خطأ أثناء إنشاء الصورة');
   });
+}
+
+function backupData(){
+  const json=JSON.stringify(db,null,2);
+  const blob=new Blob([json],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='payments-backup-'+new Date().toISOString().split('T')[0]+'.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 function copyLink(type,id){
@@ -3158,6 +3256,7 @@ function renderGroupSchedule(gid){
 checkPublicView();
 loadDB().then(()=>{
   if(window._publicView)showPublicView();
+  else checkLatePayments();
 });
 </script>
 </body>
