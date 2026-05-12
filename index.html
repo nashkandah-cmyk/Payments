@@ -1162,7 +1162,7 @@ function renderGrpDet(id){
         <div class="ct" style="margin:0">📅 جدول الحصص</div>
         <button class="btn bsm" onclick="showAddSession('sunday',null)" style="font-size:11px;background:var(--gr-bg);color:var(--gr-t)">+ حصة</button>
       </div>
-      ${renderGroupSchedule('${id}')}
+      ${renderGroupSchedule(id)}
     </div>
 
     <div class="card">
@@ -1666,7 +1666,9 @@ function renderStDet(id){
       ${renderInstTable(s)}
     </div>
 
-    ${renderDosiatCard(s,'${id}')}
+    ${renderStudentScheduleCard(s,id)}
+
+    ${renderDosiatCard(s,id)}
 
     <div class="card">
       ${(()=>{
@@ -2843,6 +2845,8 @@ function getEntityColor(entityId,type){
 function getEntityName(entityId,type){
   if(type==='group'){const g=db.groups[entityId];return g?g.name:'—';}
   if(type==='student'){const s=db.students[entityId];return s?s.name:'—';}
+  if(type==='school'){const s=db.schools[entityId];return s?s.name:'—';}
+  if(type==='center'){const c=db.centers[entityId];return c?c.name:'—';}
   return '—';
 }
 
@@ -2870,6 +2874,11 @@ function renderSchedule(){
     const weekKey='w'+weekNum;
     const daySessions=Object.values(db.schedule.sessions).filter(s=>{
       const matchesDay=s.day===dayKey||(s.recurrence==='multiday'&&(s.extraDays||[]).includes(dayKey));
+      // For multiday extra days, show with that day's specific time
+      if(matchesDay&&s.recurrence==='multiday'&&(s.extraDays||[]).includes(dayKey)&&(s.extraDayTimes||{})[dayKey]){
+        // Clone with overridden time for display
+        return matchesDay;
+      }
       if(!matchesDay)return false;
       if(s.recurrence==='once') return s.date===dateStr;
       return true; // weekly or multiday - always show
@@ -2891,7 +2900,7 @@ function renderSchedule(){
             '<div style="width:4px;height:36px;border-radius:2px;background:'+color+';flex-shrink:0"></div>'+
             '<div style="flex:1;min-width:0">'+
               '<div style="font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px">'+
-                '<span style="background:'+color+'22;color:'+color+';padding:2px 7px;border-radius:99px;font-size:12px">'+s.time+'</span>'+
+                '<span style="background:'+color+'22;color:'+color+';padding:2px 7px;border-radius:99px;font-size:12px">'+(s.recurrence==='multiday'&&(s.extraDays||[]).includes(dayKey)?(s.extraDayTimes||{})[dayKey]||s.time:s.time)+'</span>'+
                 '<span onclick="openDetFromSchedule(&quot;'+s.entityId+'&quot;,&quot;'+s.entityType+'&quot;)" style="cursor:pointer">'+name+'</span>'+
                 (s.recurrence==='biweekly'?'<span style="font-size:10px;background:var(--bl-bg);color:var(--bl-t);padding:1px 5px;border-radius:99px">كل أسبوعين</span>':'')+(s.recurrence==='once'?'<span style="font-size:10px;background:var(--am-bg);color:var(--am-t);padding:1px 5px;border-radius:99px">مرة واحدة</span>':'')+ 
                 (isHold?'<span style="font-size:10px;background:var(--am-bg);color:var(--am-t);padding:1px 6px;border-radius:99px">مؤجّل</span>':'')+
@@ -2923,9 +2932,13 @@ function showAddSession(day,editId){
 
   // Build entity options
   const grpOpts=Object.values(db.groups).sort((a,b)=>a.name.localeCompare(b.name,'ar'))
-    .map(g=>'<option value="group:'+g.id+'"'+(sess&&sess.entityId===g.id?' selected':'')+'>مجموعة: '+g.name+(g.generation?' ('+g.generation+')':'')+'</option>').join('');
+    .map(g=>'<option value="group:'+g.id+'"'+(sess&&sess.entityId===g.id?' selected':'')+'>'+g.name+(g.generation?' ('+g.generation+')':'')+'</option>').join('');
   const stOpts=Object.values(db.students).filter(s=>!s.groupId).sort((a,b)=>a.name.localeCompare(b.name,'ar'))
-    .map(s=>'<option value="student:'+s.id+'"'+(sess&&sess.entityId===s.id?' selected':'')+'>طالب: '+s.name+'</option>').join('');
+    .map(s=>'<option value="student:'+s.id+'"'+(sess&&sess.entityId===s.id?' selected':'')+'>'+s.name+'</option>').join('');
+  const scOpts=Object.values(db.schools).sort((a,b)=>a.name.localeCompare(b.name,'ar'))
+    .map(s=>'<option value="school:'+s.id+'"'+(sess&&sess.entityId===s.id?' selected':'')+'>'+s.name+'</option>').join('');
+  const cnOpts=Object.values(db.centers).sort((a,b)=>a.name.localeCompare(b.name,'ar'))
+    .map(c=>'<option value="center:'+c.id+'"'+(sess&&sess.entityId===c.id?' selected':'')+'>'+c.name+'</option>').join('');
 
   const recur=sess?.recurrence||'weekly';
   showModal(title,`
@@ -2935,8 +2948,8 @@ function showAddSession(day,editId){
           ${DAYS_EN.map((d,i)=>'<option value="'+d+'"'+(((sess?.day||day)===d)?' selected':'')+'>'+DAYS_AR[i]+'</option>').join('')}
         </select>
       </div>
-      <div class="f"><label>الوقت (مثال: 14:30)</label>
-        <input type="text" inputmode="numeric" id="sess-time" value="${sess?.time||'14:00'}" placeholder="14:30" style="font-family:monospace"/>
+      <div class="f"><label>الوقت</label>
+        <select id="sess-time">${timeOpts(sess?.time||'14:00')}</select>
       </div>
     </div>
     <div class="f" style="margin-bottom:8px">
@@ -2948,11 +2961,22 @@ function showAddSession(day,editId){
       </div>
     </div>
     <div id="sess-multiday-wrap" style="display:${recur==='multiday'?'block':'none'};margin-bottom:8px">
-      <div class="f"><label>اختر الأيام الإضافية</label>
-        <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:4px">
-          ${DAYS_AR.map((d,i)=>'<button id="sd-'+DAYS_EN[i]+'" class="chip'+(((sess?.extraDays||[]).includes(DAYS_EN[i]))||false?' on':'')+'" onclick="toggleExtraDay(&quot;'+DAYS_EN[i]+'&quot;)">'+d+'</button>').join('')}
+      <div class="f" style="margin-bottom:6px"><label>اختر الأيام الإضافية ووقتها</label>
+        <div style="font-size:11px;color:var(--tx3);margin-bottom:6px">اليوم الأساسي بالأعلى — أضف أيام بأوقات مختلفة إذا أردت</div>
+        <div id="extra-days-list">
+          ${(sess?.extraDays||[]).map((d,i)=>{
+            const dayLabel=DAYS_AR[DAYS_EN.indexOf(d)];
+            const dayTime=(sess?.extraDayTimes||{})[d]||sess?.time||'14:00';
+            return'<div class="extra-day-row" style="display:flex;align-items:center;gap:6px;margin-bottom:6px;background:var(--sur2);padding:6px 8px;border-radius:var(--rs)">'+
+              '<span style="flex:1;font-size:13px;font-weight:500">'+dayLabel+'</span>'+
+              '<select class="extra-day-time" data-day="'+d+'"><'+timeOpts(dayTime)+'</select>'+
+              '<button class="btn bd bsm" onclick="removeExtraDay(&quot;'+d+'&quot;)" style="font-size:11px;padding:2px 7px">✕</button>'+
+            '</div>';
+          }).join('')}
         </div>
-        <div style="font-size:11px;color:var(--tx3);margin-top:5px">اليوم الأساسي محدد من القائمة أعلاه — اختر أيام إضافية هنا</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">
+          ${DAYS_AR.map((d,i)=>'<button class="chip" onclick="addExtraDay(&quot;'+DAYS_EN[i]+'&quot;,&quot;'+d+'&quot;)">+ '+d+'</button>').join('')}
+        </div>
       </div>
     </div>
     <div id="sess-date-wrap" style="display:${recur==='once'?'block':'none'};margin-bottom:8px">
@@ -2962,8 +2986,10 @@ function showAddSession(day,editId){
       <label>المجموعة / الطالب</label>
       <select id="sess-entity">
         <option value="">— اختر —</option>
-        <optgroup label="المجموعات">${grpOpts}</optgroup>
+        ${grpOpts?'<optgroup label="المجموعات">'+grpOpts+'</optgroup>':''}
         ${stOpts?'<optgroup label="طلاب مستقلون">'+stOpts+'</optgroup>':''}
+        ${scOpts?'<optgroup label="المدارس">'+scOpts+'</optgroup>':''}
+        ${cnOpts?'<optgroup label="المراكز">'+cnOpts+'</optgroup>':''}
       </select>
     </div>
     <div class="fg fg2">
@@ -2984,9 +3010,37 @@ function setSessRecur(type){
   const mw=document.getElementById('sess-multiday-wrap');
   if(mw)mw.style.display=type==='multiday'?'block':'none';
 }
-function toggleExtraDay(day){
-  const b=document.getElementById('sd-'+day);
-  if(b)b.classList.toggle('on');
+
+function timeOpts(selected){
+  const times=[];
+  for(let h=7;h<24;h++){
+    for(let m=0;m<60;m+=15){
+      const val=(h<10?'0'+h:h)+':'+(m<10?'0'+m:m);
+      const ampm=h<12?'ص':'م';
+      const h12=h===0?12:h>12?h-12:h;
+      const label=h12+':'+(m<10?'0'+m:m)+' '+ampm;
+      times.push('<option value="'+val+'"'+(val===selected?' selected':'')+'>'+label+'</option>');
+    }
+  }
+  return times.join('');
+}
+function addExtraDay(dayKey,dayLabel){
+  const list=document.getElementById('extra-days-list');
+  if(!list)return;
+  // Check not already added
+  if(list.querySelector('[data-day="'+dayKey+'"]'))return;
+  const baseTime=document.getElementById('sess-time')?.value||'14:00';
+  const row=document.createElement('div');
+  row.className='extra-day-row';
+  row.style.cssText='display:flex;align-items:center;gap:6px;margin-bottom:6px;background:var(--sur2);padding:6px 8px;border-radius:var(--rs)';
+  row.innerHTML='<span style="flex:1;font-size:13px;font-weight:500">'+dayLabel+'</span>'+
+    '<select class="extra-day-time" data-day="'+dayKey+'"><option value="">—</option>'+timeOpts(baseTime)+'</select>'+
+    '<button class="btn bd bsm" onclick="this.parentElement.remove()" style="font-size:11px;padding:2px 7px">✕</button>';
+  list.appendChild(row);
+}
+function removeExtraDay(day){
+  const el=document.querySelector('[data-day="'+day+'"]');
+  if(el)el.closest('.extra-day-row')?.remove();
 }
 function showEditSession(id){showAddSession(null,id);}
 
@@ -3000,12 +3054,16 @@ function saveSession(editId){
   const id=editId||genId();
   const recurType=['weekly','multiday','once'].find(t=>document.getElementById('sr-'+t)?.classList.contains('on'))||'weekly';
   const sessDate=recurType==='once'?v('sess-date'):'';
-  const extraDays=recurType==='multiday'?DAYS_EN.filter(d=>document.getElementById('sd-'+d)?.classList.contains('on')).filter(d=>d!==day):[];
+  const extraDayRows=recurType==='multiday'?[...document.querySelectorAll('.extra-day-time')]:[];
+  const extraDays=extraDayRows.map(el=>el.dataset.day).filter(d=>d&&d!==day);
+  const extraDayTimes={};
+  extraDayRows.forEach(el=>{if(el.dataset.day&&el.dataset.day!==day)extraDayTimes[el.dataset.day]=el.value||time;});
   db.schedule.sessions[id]={
     id,day,time,entityId,entityType,
     recurrence:recurType,
     date:sessDate,
     extraDays,
+    extraDayTimes,
     location:v('sess-loc').trim(),
     note:v('sess-note').trim(),
     status:editId?(db.schedule.sessions[editId]?.status||'active'):'active',
@@ -3038,6 +3096,43 @@ function dropSession(id){
 }
 
 // Show schedule in group detail
+function renderStudentScheduleCard(s,sid){
+  initScheduleDb();
+  const sess=Object.values(db.schedule.sessions).filter(se=>{
+    if(se.entityType!=='student'||se.entityId!==sid)return false;
+    return true;
+  }).sort((a,b)=>DAYS_EN.indexOf(a.day)-DAYS_EN.indexOf(b.day)||a.time.localeCompare(b.time));
+  if(!sess.length)return '';
+  const color=getEntityColor(sid,'student');
+  return'<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'+
+    '<div class="ct" style="margin:0">📅 جدول الحصص</div></div>'+
+    sess.map(se=>{
+      const dayLabel=DAYS_AR[DAYS_EN.indexOf(se.day)];
+      const isHold=se.status==='hold';
+      // Extra days for multiday
+      const extraRows=(se.recurrence==='multiday'&&se.extraDays||[]).map(d=>{
+        const t=(se.extraDayTimes||{})[d]||se.time;
+        const dl=DAYS_AR[DAYS_EN.indexOf(d)];
+        return'<div style="font-size:11px;color:var(--tx3);margin-top:3px;padding-right:14px">↳ '+dl+' · '+t+'</div>';
+      }).join('');
+      return'<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--sur2);border-radius:var(--rs);margin-bottom:5px;opacity:'+(isHold?'0.5':'1')+'">'+
+        '<div style="width:3px;height:32px;border-radius:2px;background:'+color+';flex-shrink:0"></div>'+
+        '<div style="flex:1">'+
+          '<div style="font-size:13px;font-weight:600">'+dayLabel+
+            ' <span style="font-size:12px;font-weight:400;color:var(--tx3)">'+se.time+'</span>'+
+            (se.recurrence==='multiday'?'<span style="font-size:10px;background:var(--bl-bg);color:var(--bl-t);padding:1px 5px;border-radius:99px;margin-right:5px">أيام متعددة</span>':'')+
+            (isHold?'<span style="font-size:10px;background:var(--am-bg);color:var(--am-t);padding:1px 5px;border-radius:99px;margin-right:5px">مؤجّل</span>':'')+
+          '</div>'+
+          (se.location?'<div style="font-size:11px;color:var(--tx3)">📍 '+se.location+'</div>':'')+
+          extraRows+
+        '</div>'+
+        '<button class="btn bsm" onclick="showEditSession(&quot;'+se.id+'&quot;)" style="font-size:10px;padding:2px 6px">✏</button>'+
+        '<button class="btn bsm" onclick="toggleHoldSession(&quot;'+se.id+'&quot;);renderStDet(&quot;'+sid+'&quot;)" style="font-size:10px;padding:2px 6px">'+(isHold?'▶':'⏸')+'</button>'+
+      '</div>';
+    }).join('')+
+  '</div>';
+}
+
 function renderGroupSchedule(gid){
   initScheduleDb();
   const sess=Object.values(db.schedule.sessions)
