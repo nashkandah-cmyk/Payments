@@ -997,11 +997,10 @@ document.addEventListener('click',e=>{
 function genReceipt(type){
   if(!db.counters)db.counters={student:0,school:0,center:0};
   if(!db.settings)db.settings={};
-  const year=new Date().getFullYear().toString().slice(2);
-  const prefix={student:'ط',school:'م',center:'مر'}[type]||'ط';
+  const year=new Date().getFullYear().toString();
   db.counters[type]=(db.counters[type]||0)+1;
   const num=String(db.counters[type]).padStart(4,'0');
-  return prefix+'-'+year+'-'+num;
+  return year+'-'+num;
 }
 function rw(l,v){return`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:5px 0;border-bottom:.5px solid var(--bor)"><span style="color:var(--tx2);font-size:11px">${l}</span><span style="font-size:12px;font-weight:500;text-align:left">${v}</span></div>`;}
 
@@ -1608,6 +1607,7 @@ function savePay(){
     </div>
     <div class="br" style="margin-top:10px">
       <button class="btn bs" onclick="resetPW()">+ دفعة جديدة</button>
+      <button class="btn" onclick="exportCard('${PW.entType}','${PW.ent.id}')" style="background:var(--bl-bg);color:var(--bl-t)">🧾 طباعة الوصل</button>
       <button class="btn bp" onclick="openDet('${PW.entType}','${PW.ent.id}')">الملف الكامل</button>
     </div>`;
 }
@@ -2826,249 +2826,138 @@ function exportCard(type,eid){
   const src=type==='student'?db.students:type==='school'?db.schools:db.centers;
   const e=src[eid];if(!e)return;
 
-  // Build card HTML
-  let rp,tgt,r,pct,name,sub1,sub2,progHtml='';
+  let rp,tgt,r,name,pays,lastPay,thisPayAmt,receiptNum,receiptDate,sem;
   if(type==='student'){
     rp=relPaid(e);tgt=target(e);r=tgt-rp;
-    const pctN=pctBar(rp,tgt);
     name=e.name;
-    sub1=e.groupName||'';
-    sub2={both:'فصل أول + ثاني',sem1:'فصل أول فقط',sem2:'فصل ثاني فقط'}[e.enrollType||'both'];
-    const g=e.groupId&&db.groups[e.groupId];
-    if(g&&g.currentUnit){
-      const tu=g.totalUnits||10,lpu=g.lessonsPerUnit||7,cu=g.currentUnit||1,cl=g.currentLesson||1;
-      const done=((cu-1)*lpu)+(cl-1),total=tu*lpu,pp=Math.round((done/total)*100);
-      progHtml=`<div style="margin-top:12px;padding-top:12px;border-top:1px solid #eee">
-        <div style="font-size:11px;color:#888;margin-bottom:4px">تقدم المادة</div>
-        <div style="font-size:13px;font-weight:600;margin-bottom:4px">الوحدة ${cu} من ${tu} · الدرس ${cl} من ${lpu}</div>
-        <div style="background:#eee;border-radius:99px;height:8px;overflow:hidden">
-          <div style="width:${pp}%;height:100%;background:#4f86f7;border-radius:99px"></div>
-        </div>
-        <div style="font-size:11px;color:#888;margin-top:3px">${pp}% مكتمل</div>
-      </div>`;
-    }
-    pct=pctN;
+    pays=[...(e.payments||[])].filter(p=>!p.autoTransfer&&!p.prefilled).sort((a,b)=>b.date>a.date?1:-1);
+    lastPay=pays[0];
+    thisPayAmt=lastPay?lastPay.amount:0;
+    receiptNum=lastPay?.receipt||'—';
+    receiptDate=lastPay?new Date(lastPay.date).toLocaleDateString('ar-JO',{year:'numeric',month:'long',day:'numeric'}):'—';
+    sem=lastPay?.semester==2?'فصل ثاني':'فصل أول';
   } else if(type==='school'){
     rp=totalPaid(e);tgt=e.total;r=tgt-rp;
-    name=e.name;sub1='مدرسة · '+e.classes+' شعب';sub2='';
-    pct=pctBar(rp,tgt);
+    name=e.name;
+    pays=[...(e.payments||[])].sort((a,b)=>b.date>a.date?1:-1);
+    lastPay=pays[0];
+    thisPayAmt=lastPay?lastPay.amount:0;
+    receiptNum=lastPay?.receipt||'—';
+    receiptDate=lastPay?new Date(lastPay.date).toLocaleDateString('ar-JO',{year:'numeric',month:'long',day:'numeric'}):'—';
   } else {
     rp=totalPaid(e);tgt=e.customTotal||e.total||0;r=tgt-rp;
-    name=e.name;sub1='مركز · '+e.studentCount+' طالب';sub2='';
-    pct=pctBar(rp,tgt);
+    name=e.name;
+    pays=[...(e.payments||[])].sort((a,b)=>b.date>a.date?1:-1);
+    lastPay=pays[0];
+    thisPayAmt=lastPay?lastPay.amount:0;
+    receiptNum=lastPay?.receipt||'—';
+    receiptDate=lastPay?new Date(lastPay.date).toLocaleDateString('ar-JO',{year:'numeric',month:'long',day:'numeric'}):'—';
   }
+  const paidBefore=rp-thisPayAmt;
+  const isDone=r<=0;
 
-  const pctNum=Math.round(pct);
-  const barColor=pctNum>=100?'#22c55e':pctNum>=60?'#f59e0b':'#ef4444';
-  const today=new Date().toLocaleDateString('ar-JO',{year:'numeric',month:'long',day:'numeric'});
+  // Phoenix SVG logo
+  const phoenixSVG=`<svg width="48" height="48" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <defs><radialGradient id="fg" cx="50%" cy="60%" r="50%"><stop offset="0%" style="stop-color:#f97316"/><stop offset="100%" style="stop-color:#dc2626"/></radialGradient></defs>
+    <!-- Body -->
+    <ellipse cx="50" cy="62" rx="14" ry="18" fill="url(#fg)"/>
+    <!-- Head -->
+    <circle cx="50" cy="40" r="10" fill="#f97316"/>
+    <!-- Crest -->
+    <path d="M44 33 Q50 20 56 33" stroke="#fbbf24" stroke-width="2" fill="none"/>
+    <path d="M47 32 Q50 18 53 32" stroke="#fcd34d" stroke-width="1.5" fill="none"/>
+    <!-- Wings left -->
+    <path d="M36 55 Q20 40 18 60 Q28 58 36 65" fill="#ea580c"/>
+    <path d="M36 55 Q15 50 12 68 Q26 64 36 68" fill="#dc2626" opacity="0.7"/>
+    <!-- Wings right -->
+    <path d="M64 55 Q80 40 82 60 Q72 58 64 65" fill="#ea580c"/>
+    <path d="M64 55 Q85 50 88 68 Q74 64 64 68" fill="#dc2626" opacity="0.7"/>
+    <!-- Tail feathers -->
+    <path d="M44 78 Q38 90 32 95" stroke="#f97316" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M50 80 Q50 93 48 98" stroke="#fbbf24" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M56 78 Q62 90 68 95" stroke="#f97316" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <!-- Eye -->
+    <circle cx="47" cy="38" r="2" fill="#1e1b4b"/>
+    <circle cx="46.5" cy="37.5" r="0.6" fill="white"/>
+    <!-- Beak -->
+    <path d="M50 45 L46 49 L50 47 L54 49 Z" fill="#fbbf24"/>
+  </svg>`;
 
   const card=document.createElement('div');
-  card.style.cssText='position:fixed;top:-9999px;left:-9999px;width:360px;background:#fff;border-radius:16px;padding:24px;font-family:Arial,sans-serif;direction:rtl;box-shadow:0 4px 20px rgba(0,0,0,.15)';
+  card.style.cssText='position:fixed;top:-9999px;left:-9999px;width:380px;background:#fff;border-radius:16px;overflow:hidden;font-family:Arial,sans-serif;direction:rtl;box-shadow:0 4px 20px rgba(0,0,0,.2)';
   card.innerHTML=`
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#1e1b4b 0%,#312e81 100%);padding:20px 24px;display:flex;align-items:center;gap:12px">
+      ${phoenixSVG}
       <div>
-        <div style="font-size:18px;font-weight:700;color:#111">${name}</div>
-        ${sub1?'<div style="font-size:12px;color:#888;margin-top:2px">'+sub1+'</div>':''}
-        ${sub2?'<div style="font-size:11px;color:#aaa">'+sub2+'</div>':''}
+        <div style="color:#fff;font-size:18px;font-weight:700;letter-spacing:1px">English Master</div>
+        <div style="color:#a5b4fc;font-size:11px;margin-top:2px">وصل دفعة</div>
       </div>
-      <div style="font-size:10px;color:#bbb;text-align:left">${today}</div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">
-      <div style="background:#f8f8f8;border-radius:10px;padding:10px;text-align:center">
-        <div style="font-size:10px;color:#aaa;margin-bottom:3px">المستهدف</div>
-        <div style="font-size:14px;font-weight:700;color:#333">${fmt(tgt)}</div>
-        <div style="font-size:10px;color:#aaa">د.أ</div>
-      </div>
-      <div style="background:#f0fdf4;border-radius:10px;padding:10px;text-align:center">
-        <div style="font-size:10px;color:#aaa;margin-bottom:3px">المدفوع</div>
-        <div style="font-size:14px;font-weight:700;color:#16a34a">${fmt(rp)}</div>
-        <div style="font-size:10px;color:#aaa">د.أ</div>
-      </div>
-      <div style="background:${r>0?'#fff7ed':'#f0fdf4'};border-radius:10px;padding:10px;text-align:center">
-        <div style="font-size:10px;color:#aaa;margin-bottom:3px">المتبقي</div>
-        <div style="font-size:14px;font-weight:700;color:${r>0?'#ea580c':'#16a34a'}">${fmt(r)}</div>
-        <div style="font-size:10px;color:#aaa">د.أ</div>
+      <div style="margin-right:auto;text-align:left">
+        <div style="color:#a5b4fc;font-size:10px">رقم الوصل</div>
+        <div style="color:#fff;font-size:13px;font-weight:700;font-family:monospace">${receiptNum}</div>
       </div>
     </div>
-    <div style="background:#f8f8f8;border-radius:10px;height:10px;overflow:hidden;margin-bottom:6px">
-      <div style="width:${pctNum}%;height:100%;background:${barColor};border-radius:10px;transition:width .3s"></div>
+
+    <!-- Student & Date -->
+    <div style="padding:16px 24px;border-bottom:2px dashed #e5e7eb;display:flex;justify-content:space-between;align-items:center;background:#f8f7ff">
+      <div>
+        <div style="font-size:11px;color:#6b7280">الطالب</div>
+        <div style="font-size:16px;font-weight:700;color:#111">${name}</div>
+        ${type==='student'&&sem?'<div style="font-size:11px;color:#6366f1;margin-top:2px">'+sem+'</div>':''}
+      </div>
+      <div style="text-align:left">
+        <div style="font-size:11px;color:#6b7280">التاريخ</div>
+        <div style="font-size:13px;font-weight:600;color:#374151">${receiptDate}</div>
+      </div>
     </div>
-    <div style="font-size:12px;color:#888;text-align:center;margin-bottom:4px">${pctNum}% مسدّد</div>
-    ${progHtml}
-    ${(()=>{
-      const pays=(e.payments||[]).filter(p=>!p.autoTransfer&&!p.prefilled).sort((a,b)=>a.date>b.date?-1:1);
-      const last=pays[0];
-      if(r<=0){
-        return '<div style="margin-top:14px;padding:12px;background:#f0fdf4;border-radius:10px;border:1.5px solid #86efac;text-align:center">'+
-          '<div style="font-size:20px;margin-bottom:4px">✅</div>'+
-          '<div style="font-size:14px;font-weight:700;color:#16a34a">أنهى جميع الدفعات</div>'+
-          '<div style="font-size:11px;color:#86efac;margin-top:2px">شكراً لالتزامك</div>'+
-        '</div>';
-      }
-      if(!last)return '';
-      const sem=last.semester==2?'فصل ثاني':'فصل أول';
-      return '<div style="margin-top:14px;padding:12px;background:#f8f8f8;border-radius:10px">'+
-        '<div style="font-size:11px;color:#aaa;margin-bottom:6px">آخر دفعة</div>'+
-        '<div style="display:flex;justify-content:space-between;align-items:center">'+
-          '<div style="font-size:18px;font-weight:700;color:#111">'+fmt(last.amount)+' <span style="font-size:12px;color:#aaa">د.أ</span></div>'+
-          '<div style="text-align:left">'+
-            '<div style="font-size:12px;color:#555">'+last.date+'</div>'+
-            '<div style="font-size:11px;color:#aaa">'+sem+'</div>'+
-          '</div>'+
-        '</div>'+
-        (last.receipt?'<div style="font-size:12px;color:#555;margin-top:6px;font-family:monospace;font-weight:600;background:#fff;border-radius:6px;padding:4px 8px;display:inline-block">🧾 '+last.receipt+'</div>':'')+
-        (last.note?'<div style="font-size:11px;color:#666;margin-top:4px;font-style:italic">'+last.note+'</div>':'')+
-      '</div>';
-    })()}
-    <div style="margin-top:12px;padding-top:10px;border-top:1px solid #f0f0f0;font-size:10px;color:#ccc;text-align:center">إدارة الدفعات المالية</div>
+
+    <!-- Payment breakdown -->
+    <div style="padding:16px 24px">
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f3f4f6">
+        <span style="font-size:12px;color:#6b7280">المبلغ السنوي</span>
+        <span style="font-size:13px;font-weight:600;color:#374151">${fmt(tgt)} د.أ</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f3f4f6">
+        <span style="font-size:12px;color:#6b7280">المدفوع قبل هذه الدفعة</span>
+        <span style="font-size:13px;font-weight:600;color:#16a34a">${fmt(paidBefore)} د.أ</span>
+      </div>
+
+      <!-- Main payment amount -->
+      <div style="margin:14px 0;background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:2px solid #86efac;border-radius:12px;padding:14px;text-align:center">
+        <div style="font-size:11px;color:#15803d;margin-bottom:4px">مبلغ هذه الدفعة</div>
+        <div style="font-size:28px;font-weight:800;color:#15803d">${fmt(thisPayAmt)}</div>
+        <div style="font-size:12px;color:#16a34a">دينار أردني</div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;padding:8px 0;${isDone?'':'border-bottom:1px solid #f3f4f6'}">
+        <span style="font-size:12px;color:#6b7280">المتبقي بعد هذه الدفعة</span>
+        <span style="font-size:13px;font-weight:700;color:${isDone?'#16a34a':'#dc2626'}">${fmt(r)} د.أ</span>
+      </div>
+
+      ${isDone?`<div style="margin-top:10px;padding:10px;background:#f0fdf4;border-radius:8px;border:1px solid #86efac;text-align:center">
+        <span style="font-size:13px;font-weight:700;color:#15803d">✅ تم سداد جميع الدفعات</span>
+      </div>`:''}
+    </div>
+
+    <!-- Footer -->
+    <div style="background:#f9fafb;padding:12px 24px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid #e5e7eb">
+      <div style="font-size:11px;color:#9ca3af">English Master</div>
+      <div style="font-size:11px;color:#6b7280;font-family:monospace">078-696-3399</div>
+    </div>
   `;
   document.body.appendChild(card);
 
-  html2canvas(card,{scale:2,backgroundColor:'#fff',useCORS:true}).then(canvas=>{
+  html2canvas(card,{scale:2.5,backgroundColor:'#fff',useCORS:true}).then(canvas=>{
     document.body.removeChild(card);
     const link=document.createElement('a');
-    link.download=name+'_'+today+'.png';
+    link.download='وصل-'+name+'-'+receiptNum+'.png';
     link.href=canvas.toDataURL('image/png');
     link.click();
   }).catch(err=>{
     document.body.removeChild(card);
-    alert('حدث خطأ أثناء إنشاء الصورة');
+    alert('حدث خطأ أثناء إنشاء الوصل');
   });
-}
-
-// ── RESTORE FROM JSON ────────────────────────────────────────────────────────
-function restoreData(){
-  const inp=document.createElement('input');
-  inp.type='file';inp.accept='.json';
-  inp.onchange=function(e){
-    const file=e.target.files[0];if(!file)return;
-    const reader=new FileReader();
-    reader.onload=function(ev){
-      try{
-        const restored=JSON.parse(ev.target.result);
-        if(!restored.students||!restored.groups)throw new Error('ملف غير صالح');
-        if(!confirm('هل تريد استعادة البيانات؟ سيتم استبدال البيانات الحالية بالكامل.'))return;
-        db=restored;
-        saveDB();
-        location.reload();
-      }catch(err){alert('خطأ في الملف: '+err.message);}
-    };
-    reader.readAsText(file);
-  };
-  inp.click();
-}
-
-// ── DOSIAT TAB ────────────────────────────────────────────────────────────────
-function getDosiatUnitPrice(unit){
-  return(db.settings?.dosiatUnitPrices||{})[unit]||
-         (()=>{
-           // Fallback: try to get from any group's generation price
-           const anyGrp=Object.values(db.groups)[0];
-           if(!anyGrp)return 0;
-           return(db.settings?.dosiatPrices||{})[anyGrp.generation]||0;
-         })();
-}
-
-function renderDosiatTab(){
-  // Build unit price inputs
-  const maxUnits=Math.max(...Object.values(db.groups).map(g=>g.totalUnits||10),10);
-  const prices=db.settings?.dosiatUnitPrices||{};
-  const form=document.getElementById('dosiat-unit-prices');
-  if(form){
-    form.innerHTML='<div class="fg fg4">'+
-      Array.from({length:maxUnits},(_,i)=>{
-        const u=i+1;
-        return'<div class="f"><label>وحدة '+u+'</label>'+
-          '<input type="text" inputmode="decimal" id="dup-'+u+'" value="'+(prices[u]||'')+'" placeholder="0 د.أ"/></div>';
-      }).join('')+
-    '</div>';
-  }
-
-  // Build unit filter
-  const filter=document.getElementById('dosiat-unit-filter');
-  if(filter){
-    filter.innerHTML='<option value="">كل الوحدات</option>'+
-      Array.from({length:maxUnits},(_,i)=>'<option value="'+(i+1)+'">وحدة '+(i+1)+'</option>').join('');
-  }
-
-  renderDosiatReport();
-}
-
-function saveDosiatUnitPrices(){
-  if(!db.settings)db.settings={};
-  if(!db.settings.dosiatUnitPrices)db.settings.dosiatUnitPrices={};
-  const maxUnits=Math.max(...Object.values(db.groups).map(g=>g.totalUnits||10),10);
-  for(let u=1;u<=maxUnits;u++){
-    const val=parseFloat(document.getElementById('dup-'+u)?.value)||0;
-    db.settings.dosiatUnitPrices[u]=val;
-  }
-  saveDB();
-  al('dosiat-save-al','✓ تم حفظ الأسعار','s');
-  renderDosiatReport();
-}
-
-function renderDosiatReport(){
-  const body=document.getElementById('dosiat-report-body');
-  if(!body)return;
-  const filterUnit=document.getElementById('dosiat-unit-filter')?.value;
-  const unitNum=filterUnit?parseInt(filterUnit):null;
-  const prices=db.settings?.dosiatUnitPrices||{};
-  const allStudents=Object.values(db.students).filter(s=>!s.withdrawn);
-  const maxUnits=Math.max(...Object.values(db.groups).map(g=>g.totalUnits||10),10);
-
-  if(unitNum){
-    // Show specific unit - who paid and who didn't
-    const price=prices[unitNum]||0;
-    const paid=allStudents.filter(s=>(s.dosiatPaid||[]).includes(unitNum));
-    const unpaid=allStudents.filter(s=>!(s.dosiatPaid||[]).includes(unitNum));
-    body.innerHTML=
-      '<div style="display:flex;gap:8px;margin-bottom:8px">'+
-        '<div style="flex:1;background:var(--gr-bg);border-radius:var(--rs);padding:10px;text-align:center">'+
-          '<div style="font-size:11px;color:var(--tx3)">دفعوا</div>'+
-          '<div style="font-size:18px;font-weight:700;color:var(--gr-t)">'+paid.length+'</div>'+
-        '</div>'+
-        '<div style="flex:1;background:var(--rd-bg);border-radius:var(--rs);padding:10px;text-align:center">'+
-          '<div style="font-size:11px;color:var(--tx3)">لم يدفعوا</div>'+
-          '<div style="font-size:18px;font-weight:700;color:var(--rd-t)">'+unpaid.length+'</div>'+
-        '</div>'+
-        (price?'<div style="flex:1;background:var(--sur2);border-radius:var(--rs);padding:10px;text-align:center">'+
-          '<div style="font-size:11px;color:var(--tx3)">المتبقي</div>'+
-          '<div style="font-size:16px;font-weight:700">'+fmt(unpaid.length*price)+' د.أ</div>'+
-        '</div>':'')+'</div>'+
-      (unpaid.length?'<div style="font-size:12px;font-weight:700;color:var(--rd-t);margin-bottom:6px">لم يدفعوا وحدة '+unitNum+':</div>'+
-        unpaid.map(s=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--rd-bg);border-radius:6px;margin-bottom:4px;cursor:pointer" onclick="openDet(&quot;student&quot;,&quot;'+s.id+'&quot;)">'+
-          '<span style="font-size:13px;font-weight:500">'+s.name+'</span>'+
-          '<span style="font-size:11px;color:var(--tx3)">'+(s.groupName||'منفرد')+'</span>'+
-        '</div>').join(''):'<div class="al al-s">✓ جميع الطلاب دفعوا وحدة '+unitNum+'</div>');
-  } else {
-    // Show all units summary
-    body.innerHTML=Array.from({length:maxUnits},(_,i)=>{
-      const u=i+1;
-      const price=prices[u]||0;
-      const paidCnt=allStudents.filter(s=>(s.dosiatPaid||[]).includes(u)).length;
-      const unpaidCnt=allStudents.length-paidCnt;
-      const pct=allStudents.length?Math.round((paidCnt/allStudents.length)*100):0;
-      return'<div style="padding:10px;border:1px solid var(--bdr);border-radius:var(--rs);margin-bottom:8px">'+
-        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'+
-          '<div style="font-weight:600">وحدة '+u+(price?' <span style="font-size:11px;color:var(--tx3);font-weight:400">'+price+' د.أ</span>':'')+'</div>'+
-          '<div style="font-size:12px;color:var(--tx3)">'+paidCnt+'/'+allStudents.length+' دفعوا</div>'+
-        '</div>'+
-        '<div class="pw"><div class="pb" style="width:'+pct+'%;background:'+(pct===100?'var(--gr-t)':pct>50?'var(--am-t)':'var(--rd-t)')+'"></div></div>'+
-        (unpaidCnt>0?'<div style="font-size:11px;color:var(--rd-t);margin-top:4px;cursor:pointer" onclick="document.getElementById(&quot;dosiat-unit-filter&quot;).value=&quot;'+u+'&quot;;renderDosiatReport()">'+unpaidCnt+' لم يدفعوا ←</div>':
-        '<div style="font-size:11px;color:var(--gr-t);margin-top:4px">✓ الكل دفع</div>')+
-      '</div>';
-    }).join('');
-  }
-}
-
-function backupData(){
-  const json=JSON.stringify(db,null,2);
-  const blob=new Blob([json],{type:'application/json'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download='payments-backup-'+new Date().toISOString().split('T')[0]+'.json';
-  a.click();
-  URL.revokeObjectURL(a.href);
 }
 
 function copyLink(type,id){
