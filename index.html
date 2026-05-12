@@ -2900,7 +2900,7 @@ function renderSchedule(){
             '<div style="width:4px;height:36px;border-radius:2px;background:'+color+';flex-shrink:0"></div>'+
             '<div style="flex:1;min-width:0">'+
               '<div style="font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px">'+
-                '<span style="background:'+color+'22;color:'+color+';padding:2px 7px;border-radius:99px;font-size:12px">'+(s.recurrence==='multiday'&&(s.extraDays||[]).includes(dayKey)?(s.extraDayTimes||{})[dayKey]||s.time:s.time)+'</span>'+
+                '<span style="background:'+color+'22;color:'+color+';padding:2px 7px;border-radius:99px;font-size:12px">'+fmt12(s.recurrence==='multiday'&&(s.extraDays||[]).includes(dayKey)?(s.extraDayTimes||{})[dayKey]||s.time:s.time)+'</span>'+
                 '<span onclick="openDetFromSchedule(&quot;'+s.entityId+'&quot;,&quot;'+s.entityType+'&quot;)" style="cursor:pointer">'+name+'</span>'+
                 (s.recurrence==='biweekly'?'<span style="font-size:10px;background:var(--bl-bg);color:var(--bl-t);padding:1px 5px;border-radius:99px">كل أسبوعين</span>':'')+(s.recurrence==='once'?'<span style="font-size:10px;background:var(--am-bg);color:var(--am-t);padding:1px 5px;border-radius:99px">مرة واحدة</span>':'')+ 
                 (isHold?'<span style="font-size:10px;background:var(--am-bg);color:var(--am-t);padding:1px 6px;border-radius:99px">مؤجّل</span>':'')+
@@ -3011,6 +3011,13 @@ function setSessRecur(type){
   if(mw)mw.style.display=type==='multiday'?'block':'none';
 }
 
+function fmt12(time24){
+  if(!time24)return '';
+  const [h,m]=time24.split(':').map(Number);
+  const ampm=h<12?'ص':'م';
+  const h12=h===0?12:h>12?h-12:h;
+  return h12+':'+(m<10?'0'+m:m)+' '+ampm;
+}
 function timeOpts(selected){
   const times=[];
   for(let h=7;h<24;h++){
@@ -3117,7 +3124,7 @@ function sessRowHtml(se,color,onHold,refreshFn){
     '<div style="width:3px;height:32px;border-radius:2px;background:'+color+';flex-shrink:0"></div>'+
     '<div style="flex:1">'+
       '<div style="font-size:13px;font-weight:600">'+dayLabel+
-        ' <span style="font-size:12px;font-weight:400;color:var(--tx3)">'+se._displayTime+'</span>'+
+        ' <span style="font-size:12px;font-weight:400;color:var(--tx3)">'+fmt12(se._displayTime)+'</span>'+
         (isHold?'<span style="font-size:10px;background:var(--am-bg);color:var(--am-t);padding:1px 5px;border-radius:99px;margin-right:5px">مؤجّل</span>':'')+
         (se.recurrence==='once'?'<span style="font-size:10px;background:var(--am-bg);color:var(--am-t);padding:1px 5px;border-radius:99px;margin-right:5px">📌</span>':'')+
       '</div>'+
