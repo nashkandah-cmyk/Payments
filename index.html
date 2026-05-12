@@ -212,11 +212,12 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
 </header>
 
 <nav>
-  <button class="nb on" onclick="TAB('students')">👥 الطلاب</button>
-  <button class="nb" onclick="TAB('groups')">🗂 المجموعات</button>
+  <button class="nb on" onclick="TAB('schedule')">📅 البرنامج</button>
   <button class="nb" onclick="TAB('pay')">💰 تسجيل دفعة</button>
-  <button class="nb" onclick="TAB('schools')">🏫 المدارس</button>
+  <button class="nb" onclick="TAB('groups')">🗂 المجموعات</button>
+  <button class="nb" onclick="TAB('students')">👥 الطلاب</button>
   <button class="nb" onclick="TAB('centers')">🏢 المراكز</button>
+  <button class="nb" onclick="TAB('schools')">🏫 المدارس</button>
   <button class="nb" onclick="TAB('reports')">📊 التقارير</button>
 </nav>
 
@@ -497,6 +498,17 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
 <!-- ══════════════════════════════════════════════════════════════
      REPORTS
 ══════════════════════════════════════════════════════════════ -->
+<div id="tab-schedule" style="display:none">
+  <div style="display:flex;gap:7px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
+    <button class="btn bsm" onclick="schedNav(-1)">← السابق</button>
+    <div style="flex:1;text-align:center;font-size:14px;font-weight:600;min-width:120px" id="sched-week-label">الجدول الأسبوعي</div>
+    <button class="btn bsm" onclick="schedNav(1)">التالي →</button>
+    <button class="btn bp bsm" onclick="schedNav(0)">هذا الأسبوع</button>
+    <button class="btn bsm" onclick="showAddSession(null,null)" style="background:var(--gr-bg);color:var(--gr-t)">+ حصة جديدة</button>
+  </div>
+  <div id="sched-body"></div>
+</div>
+
 <div id="tab-reports" style="display:none">
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
@@ -635,9 +647,9 @@ async function loadDB(){
   });
   if(changed)localStorage.setItem(SK,JSON.stringify(db));
   updHdr();popGrpSels();popGrpFilter();
-  renderStudents('');
   // Then sync with Firebase
   await pullFromFirebase();
+  TAB('schedule');
 }
 
 async function pullFromFirebase(){
@@ -919,10 +931,10 @@ function closeModal(e){if(!e||e.target.id==='modal')document.getElementById('mod
 
 // ── TABS ──────────────────────────────────────────────────────────────────────
 function TAB(t){
-  ['students','add-student','groups','add-group','pay','schools','centers','reports','detail'].forEach(x=>{
+  ['students','add-student','groups','add-group','pay','schools','centers','schedule','reports','detail'].forEach(x=>{
     const e=document.getElementById('tab-'+x);if(e)e.style.display='none';
   });
-  const mainTabs=['students','groups','pay','schools','centers','reports'];
+  const mainTabs=['schedule','pay','groups','students','centers','schools','reports'];
   document.querySelectorAll('.nb').forEach((b,i)=>b.classList.toggle('on',mainTabs.indexOf(t)===i));
   const el=document.getElementById('tab-'+t);if(el)el.style.display='block';
   if(t==='students'){popGrpFilter();renderStudents('');}
@@ -931,6 +943,7 @@ function TAB(t){
   if(t==='groups')renderGroups();
   if(t==='schools')renderSchools();
   if(t==='centers')renderCenters();
+  if(t==='schedule'){renderSchedule();}
   if(t==='reports'){initRptDates();buildRpt();renderDosiatPricesForm();}
   if(t==='pay')resetPW();
 }
@@ -1144,6 +1157,14 @@ function renderGrpDet(id){
       <div class="pw"><div class="pb" style="width:${pct.toFixed(1)}%;background:${bc}"></div></div>
     </div>
     ${renderGrpProgress(g,id)}
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div class="ct" style="margin:0">📅 جدول الحصص</div>
+        <button class="btn bsm" onclick="showAddSession('sunday',null)" style="font-size:11px;background:var(--gr-bg);color:var(--gr-t)">+ حصة</button>
+      </div>
+      ${renderGroupSchedule('${id}')}
+    </div>
+
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:11px">
         <div class="ct" style="margin:0">طلاب المجموعة (${sts.length})</div>
@@ -2789,6 +2810,247 @@ function copyLink(type,id){
   }).catch(()=>{
     prompt('انسخ الرابط:',url);
   });
+}
+
+// ── SCHEDULE SYSTEM ──────────────────────────────────────────────────────────
+const DAYS_AR=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+const DAYS_EN=['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+const GRP_COLORS=['#ef4444','#f97316','#eab308','#22c55e','#06b6d4','#6366f1','#ec4899','#14b8a6','#f59e0b','#84cc16','#8b5cf6','#0ea5e9'];
+
+let schedWeekOffset=0;
+
+function getSchedWeekStart(offset){
+  const d=new Date();
+  d.setDate(d.getDate()-d.getDay()+(offset*7));
+  d.setHours(0,0,0,0);return d;
+}
+
+function initScheduleDb(){
+  if(!db.schedule)db.schedule={sessions:{},groupColors:{}};
+  if(!db.schedule.sessions)db.schedule.sessions={};
+  if(!db.schedule.groupColors)db.schedule.groupColors={};
+}
+
+function getEntityColor(entityId,type){
+  initScheduleDb();
+  if(!db.schedule.groupColors[entityId]){
+    const usedCount=Object.keys(db.schedule.groupColors).length;
+    db.schedule.groupColors[entityId]=GRP_COLORS[usedCount%GRP_COLORS.length];
+  }
+  return db.schedule.groupColors[entityId];
+}
+
+function getEntityName(entityId,type){
+  if(type==='group'){const g=db.groups[entityId];return g?g.name:'—';}
+  if(type==='student'){const s=db.students[entityId];return s?s.name:'—';}
+  return '—';
+}
+
+function schedNav(dir){
+  if(dir===0)schedWeekOffset=0;
+  else schedWeekOffset+=dir;
+  renderSchedule();
+}
+
+function renderSchedule(){
+  initScheduleDb();
+  const weekStart=getSchedWeekStart(schedWeekOffset);
+  const weekEnd=new Date(weekStart);weekEnd.setDate(weekEnd.getDate()+6);
+  const fmt2=d=>d.toLocaleDateString('ar-JO',{month:'short',day:'numeric'});
+  document.getElementById('sched-week-label').textContent=fmt2(weekStart)+' — '+fmt2(weekEnd);
+
+  let html='';
+  for(let di=0;di<7;di++){
+    const dayKey=DAYS_EN[di];
+    const dayDate=new Date(weekStart);dayDate.setDate(dayDate.getDate()+di);
+    const dateStr=dayDate.toISOString().split('T')[0];
+
+    // Get sessions for this day
+    const weekNum=Math.floor((weekStart.getTime())/(7*24*3600*1000));
+    const weekKey='w'+weekNum;
+    const daySessions=Object.values(db.schedule.sessions).filter(s=>{
+      if(s.day!==dayKey)return false;
+      if(s.recurrence==='once'){
+        // Show only on specific date
+        return s.date===dateStr;
+      }
+      if(s.recurrence==='biweekly'){
+        // Show every other week based on creation week
+        const createWeek=Math.floor(new Date(s.createdAt).getTime()/(7*24*3600*1000));
+        return (weekNum-createWeek)%2===0;
+      }
+      return true; // weekly - always show
+    }).sort((a,b)=>a.time.localeCompare(b.time));
+
+    const hasDate=daySessions.length>0;
+    html+=`<div class="card" style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${hasDate?'10px':'0'}">
+        <div style="font-weight:600;font-size:14px">${DAYS_AR[di]} <span style="font-size:11px;color:var(--tx3);font-weight:400">${dateStr}</span></div>
+        <button class="btn bsm" onclick="showAddSession('${dayKey}',null)" style="font-size:11px;background:var(--gr-bg);color:var(--gr-t)">+ حصة</button>
+      </div>
+      ${daySessions.length===0?'<div style="font-size:12px;color:var(--tx3);padding:4px 0">لا توجد حصص</div>':
+        daySessions.map(s=>{
+          const color=getEntityColor(s.entityId,s.entityType);
+          const name=getEntityName(s.entityId,s.entityType);
+          const isHold=s.status==='hold'||(s.holds||[]).includes(weekKey);
+          const opacity=isHold?'0.5':'1';
+          return'<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--rs);background:var(--sur2);margin-bottom:6px;opacity:'+opacity+'">'+
+            '<div style="width:4px;height:36px;border-radius:2px;background:'+color+';flex-shrink:0"></div>'+
+            '<div style="flex:1;min-width:0">'+
+              '<div style="font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px">'+
+                '<span style="background:'+color+'22;color:'+color+';padding:2px 7px;border-radius:99px;font-size:12px">'+s.time+'</span>'+
+                '<span onclick="openDetFromSchedule(&quot;'+s.entityId+'&quot;,&quot;'+s.entityType+'&quot;)" style="cursor:pointer">'+name+'</span>'+
+                (s.recurrence==='biweekly'?'<span style="font-size:10px;background:var(--bl-bg);color:var(--bl-t);padding:1px 5px;border-radius:99px">كل أسبوعين</span>':'')+(s.recurrence==='once'?'<span style="font-size:10px;background:var(--am-bg);color:var(--am-t);padding:1px 5px;border-radius:99px">مرة واحدة</span>':'')+ 
+                (isHold?'<span style="font-size:10px;background:var(--am-bg);color:var(--am-t);padding:1px 6px;border-radius:99px">مؤجّل</span>':'')+
+              '</div>'+
+              (s.location?'<div style="font-size:11px;color:var(--tx3);margin-top:2px">📍 '+s.location+'</div>':'')+
+              (s.note?'<div style="font-size:11px;color:var(--tx3)">'+s.note+'</div>':'')+
+            '</div>'+
+            '<div style="display:flex;gap:4px;flex-shrink:0">'+
+              '<button class="btn bsm" onclick="showEditSession(&quot;'+s.id+'&quot;)" title="تعديل" style="font-size:11px;padding:3px 7px">✏</button>'+
+              '<button class="btn bsm" onclick="toggleHoldSession(&quot;'+s.id+'&quot;'+(s.recurrence&&s.recurrence!=='once'?',&quot;'+weekKey+'&quot;':'')+')" title="'+(isHold?'إلغاء':'تأجيل هذا الأسبوع')+'" style="font-size:11px;padding:3px 7px">'+(isHold?'▶':'⏸')+'</button>'+
+              '<button class="btn bd bsm" onclick="dropSession(&quot;'+s.id+'&quot;)" title="حذف" style="font-size:11px;padding:3px 7px">✕</button>'+
+            '</div>'+
+          '</div>';
+        }).join('')}
+    </div>`;
+  }
+  document.getElementById('sched-body').innerHTML=html;
+}
+
+function openDetFromSchedule(entityId,entityType){
+  if(entityType==='group')openGrpDetail(entityId);
+  else if(entityType==='student')openDet('student',entityId);
+}
+
+function showAddSession(day,editId){
+  initScheduleDb();
+  const sess=editId?db.schedule.sessions[editId]:null;
+  const title=editId?'تعديل الحصة':'إضافة حصة جديدة';
+
+  // Build entity options
+  const grpOpts=Object.values(db.groups).sort((a,b)=>a.name.localeCompare(b.name,'ar'))
+    .map(g=>'<option value="group:'+g.id+'"'+(sess&&sess.entityId===g.id?' selected':'')+'>مجموعة: '+g.name+(g.generation?' ('+g.generation+')':'')+'</option>').join('');
+  const stOpts=Object.values(db.students).filter(s=>!s.groupId).sort((a,b)=>a.name.localeCompare(b.name,'ar'))
+    .map(s=>'<option value="student:'+s.id+'"'+(sess&&sess.entityId===s.id?' selected':'')+'>طالب: '+s.name+'</option>').join('');
+
+  const recur=sess?.recurrence||'weekly';
+  showModal(title,`
+    <div class="fg fg2">
+      <div class="f"><label>اليوم</label>
+        <select id="sess-day">
+          ${DAYS_EN.map((d,i)=>'<option value="'+d+'"'+(((sess?.day||day)===d)?' selected':'')+'>'+DAYS_AR[i]+'</option>').join('')}
+        </select>
+      </div>
+      <div class="f"><label>الوقت</label>
+        <input type="time" id="sess-time" value="${sess?.time||'14:00'}"/>
+      </div>
+    </div>
+    <div class="f" style="margin-bottom:8px">
+      <label>نوع الحصة</label>
+      <div class="seg" id="sess-recur-seg">
+        <button class="sb ${recur==='weekly'?'on':''}" id="sr-weekly" onclick="setSessRecur('weekly')">📅 أسبوعية</button>
+        <button class="sb ${recur==='biweekly'?'on':''}" id="sr-biweekly" onclick="setSessRecur('biweekly')">📅 كل أسبوعين</button>
+        <button class="sb ${recur==='once'?'on':''}" id="sr-once" onclick="setSessRecur('once')">📌 مرة واحدة</button>
+      </div>
+    </div>
+    <div id="sess-date-wrap" style="display:${recur==='once'?'block':'none'};margin-bottom:8px">
+      <div class="f"><label>تاريخ الحصة</label><input type="date" id="sess-date" value="${sess?.date||new Date().toISOString().split('T')[0]}"/></div>
+    </div>
+    <div class="f" style="margin-bottom:8px">
+      <label>المجموعة / الطالب</label>
+      <select id="sess-entity">
+        <option value="">— اختر —</option>
+        <optgroup label="المجموعات">${grpOpts}</optgroup>
+        ${stOpts?'<optgroup label="طلاب مستقلون">'+stOpts+'</optgroup>':''}
+      </select>
+    </div>
+    <div class="fg fg2">
+      <div class="f"><label>المكان (اختياري)</label><input id="sess-loc" value="${sess?.location||''}" placeholder="مثال: المنزل / أونلاين"/></div>
+      <div class="f"><label>ملاحظة (اختياري)</label><input id="sess-note" value="${sess?.note||''}"/></div>
+    </div>
+  `,`<button class="btn bp" onclick="saveSession(${editId?'&quot;'+editId+'&quot;':'null'})">حفظ</button>
+     <button class="btn" onclick="closeModal()">إلغاء</button>`);
+}
+
+function setSessRecur(type){
+  ['weekly','biweekly','once'].forEach(t=>{
+    const b=document.getElementById('sr-'+t);
+    if(b)b.classList.toggle('on',t===type);
+  });
+  const dw=document.getElementById('sess-date-wrap');
+  if(dw)dw.style.display=type==='once'?'block':'none';
+}
+function showEditSession(id){showAddSession(null,id);}
+
+function saveSession(editId){
+  initScheduleDb();
+  const day=v('sess-day');
+  const time=v('sess-time');
+  const entityRaw=v('sess-entity');
+  if(!day||!time||!entityRaw)return;
+  const [entityType,entityId]=entityRaw.split(':');
+  const id=editId||genId();
+  const recurType=['weekly','biweekly','once'].find(t=>document.getElementById('sr-'+t)?.classList.contains('on'))||'weekly';
+  const sessDate=recurType==='once'?v('sess-date'):'';
+  db.schedule.sessions[id]={
+    id,day,time,entityId,entityType,
+    recurrence:recurType,
+    date:sessDate,
+    location:v('sess-loc').trim(),
+    note:v('sess-note').trim(),
+    status:editId?(db.schedule.sessions[editId]?.status||'active'):'active',
+    holds:editId?(db.schedule.sessions[editId]?.holds||[]):[],
+    createdAt:new Date().toISOString()
+  };
+  saveDB();closeModal();renderSchedule();
+}
+
+function toggleHoldSession(id,weekKey){
+  initScheduleDb();
+  const s=db.schedule.sessions[id];if(!s)return;
+  if(weekKey&&s.recurrence&&s.recurrence!=='once'){
+    // Per-week hold for recurring sessions
+    if(!s.holds)s.holds=[];
+    const idx=s.holds.indexOf(weekKey);
+    if(idx>=0)s.holds.splice(idx,1);
+    else s.holds.push(weekKey);
+  } else {
+    s.status=s.status==='hold'?'active':'hold';
+  }
+  saveDB();renderSchedule();
+}
+
+function dropSession(id){
+  if(!confirm('حذف هذه الحصة نهائياً؟'))return;
+  initScheduleDb();
+  delete db.schedule.sessions[id];
+  saveDB();renderSchedule();
+}
+
+// Show schedule in group detail
+function renderGroupSchedule(gid){
+  initScheduleDb();
+  const sess=Object.values(db.schedule.sessions)
+    .filter(s=>s.entityId===gid&&s.entityType==='group')
+    .sort((a,b)=>DAYS_EN.indexOf(a.day)-DAYS_EN.indexOf(b.day)||a.time.localeCompare(b.time));
+  if(!sess.length)return'<div style="font-size:12px;color:var(--tx3);text-align:center;padding:8px">لا توجد حصص مجدولة — أضفها من قسم الجدول</div>';
+  const color=getEntityColor(gid,'group');
+  return sess.map(s=>{
+    const dayLabel=DAYS_AR[DAYS_EN.indexOf(s.day)];
+    const isHold=s.status==='hold';
+    return'<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--sur2);border-radius:var(--rs);margin-bottom:5px;opacity:'+(isHold?'0.5':'1')+'">'+
+      '<div style="width:3px;height:28px;border-radius:2px;background:'+color+'"></div>'+
+      '<div style="flex:1">'+
+        '<span style="font-size:12px;font-weight:600">'+dayLabel+'</span>'+
+        '<span style="font-size:12px;color:var(--tx3);margin-right:8px">'+s.time+'</span>'+
+        (s.location?'<span style="font-size:11px;color:var(--tx3)">· '+s.location+'</span>':'')+
+        (isHold?'<span style="font-size:10px;background:var(--am-bg);color:var(--am-t);padding:1px 5px;border-radius:99px;margin-right:5px">مؤجّل</span>':'')+
+      '</div>'+
+      '<button class="btn bsm" onclick="showEditSession(&quot;'+s.id+'&quot;)" style="font-size:10px;padding:2px 6px">✏</button>'+
+      '<button class="btn bsm" onclick="toggleHoldSession(&quot;'+s.id+'&quot;);renderGrpDet(&quot;'+gid+'&quot;)" style="font-size:10px;padding:2px 6px">'+(isHold?'▶':'⏸')+'</button>'+
+    '</div>';
+  }).join('');
 }
 
 checkPublicView();
