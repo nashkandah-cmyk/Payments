@@ -3159,12 +3159,12 @@ function renderSchedule(){
           const color=getEntityColor(s.entityId,s.entityType);
           const name=getEntityName(s.entityId,s.entityType);
           const isHold=s.status==='hold'||(s.holds||[]).includes(weekKey);
+          const displayTime=s.recurrence==='multiday'&&(s.extraDays||[]).includes(dayKey)?(s.extraDayTimes||{})[dayKey]||s.time:s.time;
           const sTimeParsed=displayTime.split(':').map(Number);
           const sMinutes=sTimeParsed[0]*60+(sTimeParsed[1]||0);
           const nowNow=new Date();const nowMinutes=nowNow.getHours()*60+nowNow.getMinutes();
           const isPastSession=schedWeekOffset===0&&dayKey===DAYS_EN[nowNow.getDay()]&&sMinutes+60<nowMinutes;
           const opacity=isHold?'0.5':isPastSession?'0.4':'1';
-          const displayTime=s.recurrence==='multiday'&&(s.extraDays||[]).includes(dayKey)?(s.extraDayTimes||{})[dayKey]||s.time:s.time;
           return'<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--rs);background:var(--sur2);margin-bottom:6px;opacity:'+opacity+'">'+
             '<div style="width:4px;height:36px;border-radius:2px;background:'+color+';flex-shrink:0"></div>'+
             '<div style="flex:1;min-width:0">'+
