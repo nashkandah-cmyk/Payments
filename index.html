@@ -1278,7 +1278,7 @@ function renderGrpDet(id){
           '</div>';
           return html;
         }).join('')}
-    </div>`;
+  `;
 }
 function renderGrpProgress(g,gid){
   const totalUnits=g.totalUnits||10;
@@ -3149,12 +3149,15 @@ function renderSchedule(){
 
     const hasDate=daySessions.length>0;
     const isToday2=schedWeekOffset===0&&dayKey===DAYS_EN[new Date().getDay()];
-    html+=`<div class="card" style="margin-bottom:10px;${isToday2?'border:2px solid var(--bl-t)':''}">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${hasDate?'10px':'0'}">
-        <div style="font-weight:600;font-size:14px">${isToday2?'<span style="color:var(--bl-t)">● </span>':''}${DAYS_AR[di]} <span style="font-size:11px;color:var(--tx3);font-weight:400">${dateStr}</span></div>
-        <button class="btn bsm" onclick="showAddSession('${dayKey}',null)" style="font-size:11px;background:var(--gr-bg);color:var(--gr-t)">+ حصة</button>
-      </div>
-      ${daySessions.length===0?'<div style="font-size:12px;color:var(--tx3);padding:4px 0">لا توجد حصص</div>':
+    const todayBorder=isToday2?'border:2px solid var(--bl-t);':'';
+    const todayDot=isToday2?'<span style="color:var(--bl-t)">● </span>':'';
+    const mbottom=hasDate?'10px':'0';
+    html+='<div class="card" style="margin-bottom:10px;'+todayBorder+'">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:'+mbottom+'">'+
+        '<div style="font-weight:600;font-size:14px">'+todayDot+DAYS_AR[di]+' <span style="font-size:11px;color:var(--tx3);font-weight:400">'+dateStr+'</span></div>'+
+        '<button class="btn bsm" onclick="showAddSession(&quot;'+dayKey+'&quot;,null)" style="font-size:11px;background:var(--gr-bg);color:var(--gr-t)">+ حصة</button>'+
+      '</div>'+
+      (daySessions.length===0?'<div style="font-size:12px;color:var(--tx3);padding:4px 0">لا توجد حصص</div>':
         daySessions.map(s=>{
           const color=getEntityColor(s.entityId,s.entityType);
           const name=getEntityName(s.entityId,s.entityType);
@@ -3183,8 +3186,7 @@ function renderSchedule(){
               '<button class="btn bd bsm" onclick="dropSession(&quot;'+s.id+'&quot;)" title="حذف" style="font-size:11px;padding:3px 7px">✕</button>'+
             '</div>'+
           '</div>';
-        }).join('')}
-    </div>`;
+        }).join(''));
   }
   document.getElementById('sched-body').innerHTML=html;
 }
