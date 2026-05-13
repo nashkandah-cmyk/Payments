@@ -3085,7 +3085,7 @@ function renderWeekStrip(){
 
     const bgColor=isToday?'var(--bl-t)':'var(--sur2)';
     const textColor=isToday?'#fff':'var(--tx2)';
-    const dimDay=!isToday&&isCurrentWeek&&di<now.getDay();
+    const dimDay=false; // no dimming
 
     const sessionDots=daySessions.map(s=>{
       const sTime=s.recurrence==='multiday'&&(s.extraDays||[]).includes(dayKey)?(s.extraDayTimes||{})[dayKey]||s.time:s.time;
@@ -3104,7 +3104,7 @@ function renderWeekStrip(){
     }).join('');
 
     const sessionDotsHtml=daySessions.length?sessionDots:'<div style="font-size:10px;color:'+(isToday?'rgba(255,255,255,0.5)':'var(--tx3)')+'">لا حصص</div>';
-    return'<div onclick="scrollToDay(&quot;'+dayKey+'&quot;)" style="flex:0 0 auto;width:120px;background:'+bgColor+';border-radius:12px;padding:10px 12px;cursor:pointer;opacity:'+(dimDay?'0.45':'1')+';transition:opacity .2s;box-shadow:'+(isToday?'0 2px 12px rgba(99,102,241,.3)':'none')+'">'+
+    return'<div onclick="scrollToDay(&quot;'+dayKey+'&quot;)" style="flex:0 0 auto;width:120px;background:'+bgColor+';border-radius:12px;padding:10px 12px;cursor:pointer;transition:background .2s">'+
       '<div style="font-size:13px;font-weight:700;color:'+textColor+';margin-bottom:1px">'+DAYS_AR[di]+'</div>'+
       '<div style="font-size:11px;color:'+(isToday?'rgba(255,255,255,0.75)':'var(--tx3)')+';margin-bottom:7px;font-weight:500">'+dayDate.getDate()+'/'+( dayDate.getMonth()+1)+'</div>'+
       sessionDotsHtml+
@@ -3149,12 +3149,11 @@ function renderSchedule(){
 
     const hasDate=daySessions.length>0;
     const isToday2=schedWeekOffset===0&&dayKey===DAYS_EN[new Date().getDay()];
-    const todayBorder=isToday2?'border:2px solid var(--bl-t);':'';
-    const todayDot=isToday2?'<span style="color:var(--bl-t)">● </span>':'';
+    const todayDot=isToday2?'● ':'';
     const mbottom=hasDate?'10px':'0';
-    html+='<div class="card" style="margin-bottom:10px;'+todayBorder+'">'+
+    html+='<div class="card" style="margin-bottom:10px">'+
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:'+mbottom+'">'+
-        '<div style="font-weight:600;font-size:14px">'+todayDot+DAYS_AR[di]+' <span style="font-size:11px;color:var(--tx3);font-weight:400">'+dateStr+'</span></div>'+
+        '<div style="font-weight:600;font-size:14px;color:'+(isToday2?'var(--bl-t)':'var(--tx1)')+'">'+todayDot+DAYS_AR[di]+' <span style="font-size:11px;color:var(--tx3);font-weight:400">'+dateStr+'</span></div>'+
         '<button class="btn bsm" onclick="showAddSession(&quot;'+dayKey+'&quot;,null)" style="font-size:11px;background:var(--gr-bg);color:var(--gr-t)">+ حصة</button>'+
       '</div>'+
       (daySessions.length===0?'<div style="font-size:12px;color:var(--tx3);padding:4px 0">لا توجد حصص</div>':
@@ -3167,7 +3166,7 @@ function renderSchedule(){
           const sMinutes=sTimeParsed[0]*60+(sTimeParsed[1]||0);
           const nowNow=new Date();const nowMinutes=nowNow.getHours()*60+nowNow.getMinutes();
           const isPastSession=schedWeekOffset===0&&dayKey===DAYS_EN[nowNow.getDay()]&&sMinutes+60<nowMinutes;
-          const opacity=isHold?'0.5':isPastSession?'0.4':'1';
+          const opacity=isHold?'0.5':isPastSession?'0.5':'1';
           return'<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--rs);background:var(--sur2);margin-bottom:6px;opacity:'+opacity+'">'+
             '<div style="width:4px;height:36px;border-radius:2px;background:'+color+';flex-shrink:0"></div>'+
             '<div style="flex:1;min-width:0">'+
@@ -3186,7 +3185,7 @@ function renderSchedule(){
               '<button class="btn bd bsm" onclick="dropSession(&quot;'+s.id+'&quot;)" title="حذف" style="font-size:11px;padding:3px 7px">✕</button>'+
             '</div>'+
           '</div>';
-        }).join(''));
+        }).join('')+'</div>');
   }
   document.getElementById('sched-body').innerHTML=html;
 }
