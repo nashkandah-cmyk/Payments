@@ -2983,6 +2983,8 @@ function exportCard(type,eid,specificPid){
   const paidBefore=type==='student'?
     (e.payments||[]).filter(p=>!p.autoTransfer&&!p.prefilled&&p.id!==lastPay?.id).reduce((a,p)=>a+p.amount,0):
     (e.payments||[]).filter(p=>p.id!==lastPay?.id).reduce((a,p)=>a+p.amount,0);
+  // Override r to show remaining AT THE TIME of this payment
+  r=tgt-(paidBefore+thisPayAmt);
   const isDone=r<=0;
 
   // Phoenix SVG logo
