@@ -2930,21 +2930,15 @@ function restoreFromFile(input){
 function exportPayReceipt(type,eid,pid){
   const src=type==='student'?db.students:type==='school'?db.schools:db.centers;
   const e=src[eid];if(!e)return;
-  const orig=e.payments?[...e.payments]:[];
-  const pidx=orig.findIndex(p=>p.id===pid);
-  if(pidx<0)return exportCard(type,eid);
+  const pays=e.payments||[];
+  const p=pays.find(x=>x.id===pid);
+  if(!p)return exportCard(type,eid);
   // Auto-assign receipt number if missing
-  if(!orig[pidx].receipt){
-    orig[pidx].receipt=genReceipt(type);
-    saveDB();
-  }
-  const reordered=[orig[pidx],...orig.filter((_,i)=>i!==pidx)];
-  e.payments=reordered;
-  exportCard(type,eid);
-  setTimeout(()=>{e.payments=orig;},200);
+  if(!p.receipt){p.receipt=genReceipt(type);saveDB();}
+  exportCard(type,eid,pid); // pass specific payment id
 }
 
-function exportCard(type,eid){
+function exportCard(type,eid,specificPid){
   const src=type==='student'?db.students:type==='school'?db.schools:db.centers;
   const e=src[eid];if(!e)return;
 
@@ -2952,9 +2946,12 @@ function exportCard(type,eid){
   if(type==='student'){
     rp=relPaid(e);tgt=target(e);r=tgt-rp;
     name=e.name;
-    pays=[...(e.payments||[])].filter(p=>!p.autoTransfer&&!p.prefilled).sort((a,b)=>b.date>a.date?1:-1);
-    lastPay=pays[0];
+    const allPays=[...(e.payments||[])].filter(p=>!p.autoTransfer&&!p.prefilled);
+    lastPay=specificPid?allPays.find(p=>p.id===specificPid):allPays.sort((a,b)=>b.date>a.date?1:-1)[0];
+    if(!lastPay)lastPay=allPays.sort((a,b)=>b.date>a.date?1:-1)[0];
     if(lastPay&&!lastPay.receipt){lastPay.receipt=genReceipt(type);saveDB();}
+    // paidBefore = total paid minus this payment
+    const paidBefore=allPays.filter(p=>p.id!==lastPay?.id).reduce((a,p)=>a+p.amount,0);
     thisPayAmt=lastPay?lastPay.amount:0;
     receiptNum=lastPay?.receipt||'—';
     receiptDate=lastPay?lastPay.date:'—';
@@ -2962,8 +2959,9 @@ function exportCard(type,eid){
   } else if(type==='school'){
     rp=totalPaid(e);tgt=e.total;r=tgt-rp;
     name=e.name;
-    pays=[...(e.payments||[])].sort((a,b)=>b.date>a.date?1:-1);
-    lastPay=pays[0];
+    const allPays=[...(e.payments||[])];
+    lastPay=specificPid?allPays.find(p=>p.id===specificPid):allPays.sort((a,b)=>b.date>a.date?1:-1)[0];
+    if(!lastPay)lastPay=allPays.sort((a,b)=>b.date>a.date?1:-1)[0];
     if(lastPay&&!lastPay.receipt){lastPay.receipt=genReceipt(type);saveDB();}
     thisPayAmt=lastPay?lastPay.amount:0;
     receiptNum=lastPay?.receipt||'—';
@@ -2971,14 +2969,17 @@ function exportCard(type,eid){
   } else {
     rp=totalPaid(e);tgt=e.customTotal||e.total||0;r=tgt-rp;
     name=e.name;
-    pays=[...(e.payments||[])].sort((a,b)=>b.date>a.date?1:-1);
-    lastPay=pays[0];
+    const allPays=[...(e.payments||[])];
+    lastPay=specificPid?allPays.find(p=>p.id===specificPid):allPays.sort((a,b)=>b.date>a.date?1:-1)[0];
+    if(!lastPay)lastPay=allPays.sort((a,b)=>b.date>a.date?1:-1)[0];
     if(lastPay&&!lastPay.receipt){lastPay.receipt=genReceipt(type);saveDB();}
     thisPayAmt=lastPay?lastPay.amount:0;
     receiptNum=lastPay?.receipt||'—';
     receiptDate=lastPay?lastPay.date:'—';
   }
-  const paidBefore=rp-thisPayAmt;
+  const paidBefore=type==='student'?
+    (e.payments||[]).filter(p=>!p.autoTransfer&&!p.prefilled&&p.id!==lastPay?.id).reduce((a,p)=>a+p.amount,0):
+    (e.payments||[]).filter(p=>p.id!==lastPay?.id).reduce((a,p)=>a+p.amount,0);
   const isDone=r<=0;
 
   // Phoenix SVG logo
