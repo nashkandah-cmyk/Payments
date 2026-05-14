@@ -227,6 +227,7 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
 
 <nav>
   <button class="nb on" onclick="TAB('schedule')">📅 البرنامج</button>
+  <button class="nb" onclick="TAB('progress')">📖 السير</button>
   <button class="nb" onclick="TAB('pay')">💰 تسجيل دفعة</button>
   <button class="nb" onclick="TAB('groups')">🗂 المجموعات</button>
   <button class="nb" onclick="TAB('students')">👥 الطلاب</button>
@@ -558,6 +559,11 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
     </div>
   </div>
   <div id="rpt-out"></div>
+</div>
+
+<!-- PROGRESS TAB -->
+<div id="tab-progress" style="display:none">
+  <div id="progress-body"></div>
 </div>
 
 <!-- DOSIAT TAB -->
@@ -1046,10 +1052,10 @@ function closeModal(e){if(!e||e.target.id==='modal')document.getElementById('mod
 
 // ── TABS ──────────────────────────────────────────────────────────────────────
 function TAB(t){
-  ['students','add-student','groups','add-group','pay','schools','centers','schedule','dosiat','reports','detail'].forEach(x=>{
+  ['students','add-student','groups','add-group','pay','schools','centers','schedule','dosiat','progress','reports','detail'].forEach(x=>{
     const e=document.getElementById('tab-'+x);if(e)e.style.display='none';
   });
-  const mainTabs=['schedule','pay','groups','students','centers','schools','dosiat','reports'];
+  const mainTabs=['schedule','progress','pay','groups','students','centers','schools','dosiat','reports'];
   document.querySelectorAll('.nb').forEach((b,i)=>b.classList.toggle('on',mainTabs.indexOf(t)===i));
   const el=document.getElementById('tab-'+t);if(el)el.style.display='block';
   if(t==='students'){popGrpFilter();renderStudents('');}
@@ -1060,6 +1066,7 @@ function TAB(t){
   if(t==='centers')renderCenters();
   if(t==='schedule'){renderSchedule();}
   if(t==='dosiat'){renderDosiatTab();}
+  if(t==='progress'){renderProgressTab();}
   if(t==='reports'){initRptDates();buildRpt();}
   if(t==='pay')resetPW();
 }
@@ -3686,6 +3693,64 @@ function renderGroupSchedule(gid){
   const color=getEntityColor(gid,'group');
   const rows=expandSessions(rawSess);
   return rows.map(se=>sessRowHtml(se,color,false,'renderGrpDet(&quot;'+gid+'&quot;)')).join('');
+}
+
+// ── PROGRESS TAB ─────────────────────────────────────────────────────────────
+function renderProgressTab(){
+  const body=document.getElementById('progress-body');
+  if(!body)return;
+  const groups=Object.values(db.groups).sort((a,b)=>a.name.localeCompare(b.name,'ar'));
+  const soloStudents=Object.values(db.students).filter(s=>!s.groupId&&!s.withdrawn&&(s.totalUnits||s.currentUnit));
+  const allE=[...groups,...soloStudents];
+  const doneAll=allE.filter(e=>(e.currentUnit||0)>=(e.totalUnits||10)).length;
+  let html='<div class="card" style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:13px;font-weight:600">المجموعات والطلاب: '+allE.length+'</div><div style="font-size:12px;color:var(--gr-t)">'+doneAll+' أنهوا المنهج ✓</div></div></div>';
+  if(groups.length){html+='<div style="font-size:12px;font-weight:700;color:var(--tx3);margin-bottom:8px">المجموعات</div>';html+=groups.map(g=>progressCard(g,'group',g.id)).join('');}
+  if(soloStudents.length){html+='<div style="font-size:12px;font-weight:700;color:var(--tx3);margin:12px 0 8px">طلاب مستقلون</div>';html+=soloStudents.map(s=>progressCard(s,'student',s.id)).join('');}
+  body.innerHTML=html||'<div class="empty"><div class="ei">📖</div>لا توجد بيانات</div>';
+}
+function progressCard(entity,type,eid){
+  const tu=entity.totalUnits||10,lpu=entity.lessonsPerUnit||7;
+  const cu=entity.currentUnit||0,cl=entity.currentLesson||0;
+  const note=entity.progressNote||'',name=entity.name;
+  const gen=entity.generation?'<span class="tag tp" style="font-size:10px">'+entity.generation+'</span>':'';
+  const doneLessons=cu>0?((cu-1)*lpu)+(cl-1):0;
+  const totalLessons=tu*lpu;
+  const pct=totalLessons>0?Math.round((doneLessons/totalLessons)*100):0;
+  const bc=pct>=80?'var(--gr-t)':pct>=40?'var(--am-t)':'var(--bl-t)';
+  let grid='<div style="display:flex;flex-direction:column;gap:3px;margin:8px 0">';
+  for(let u=1;u<=tu;u++){
+    grid+='<div style="display:flex;align-items:center;gap:3px"><div style="font-size:9px;color:var(--tx3);width:28px;flex-shrink:0;text-align:right">و'+u+'</div>';
+    for(let l=1;l<=lpu;l++){
+      const isDone=(u<cu)||(u===cu&&l<cl);
+      const isCur=u===cu&&l===cl;
+      const bg=isDone?'var(--gr-t)':isCur?'var(--bl-t)':'var(--sur2)';
+      const brd=isCur?'2px solid var(--bl-t)':'1px solid var(--bdr)';
+      grid+='<div onclick="setProgress(&quot;'+type+'&quot;,&quot;'+eid+'&quot;,'+u+','+l+')" title="و'+u+' ل'+l+'" style="width:22px;height:22px;border-radius:4px;background:'+bg+';border:'+brd+';cursor:pointer;flex-shrink:0;transition:all .15s"></div>';
+    }
+    grid+='</div>';
+  }
+  grid+='</div>';
+  return'<div class="card" style="margin-bottom:10px">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">'+
+      '<div style="font-size:14px;font-weight:700">'+name+' '+gen+'</div>'+
+      '<div style="font-size:12px;color:var(--tx3)">'+(cu?'و'+cu+' · ل'+cl:'لم يبدأ')+'</div>'+
+    '</div>'+
+    '<div class="pw" style="margin-bottom:3px"><div class="pb" style="width:'+pct+'%;background:'+bc+'"></div></div>'+
+    '<div style="font-size:10px;color:var(--tx3);margin-bottom:6px">'+pct+'% · '+doneLessons+'/'+totalLessons+'</div>'+
+    grid+
+    '<input id="pnote-'+eid+'" value="'+esc(note)+'" placeholder="ملاحظة..." onblur="saveProgressNote(&quot;'+type+'&quot;,&quot;'+eid+'&quot;,this.value)" style="width:100%;font-size:11px;padding:5px 8px;border-radius:6px;border:1px solid var(--bdr);background:var(--sur2);color:var(--tx1);box-sizing:border-box;margin-top:4px"/>'+
+  '</div>';
+}
+function setProgress(type,eid,unit,lesson){
+  const src=type==='group'?db.groups:db.students;
+  const e=src[eid];if(!e)return;
+  e.currentUnit=unit;e.currentLesson=lesson;
+  saveDB();renderProgressTab();
+}
+function saveProgressNote(type,eid,val){
+  const src=type==='group'?db.groups:db.students;
+  const e=src[eid];if(!e)return;
+  e.progressNote=val.trim();saveDB();
 }
 
 checkPublicView();
