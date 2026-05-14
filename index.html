@@ -556,6 +556,7 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
       <button class="btn bsm" onclick="setRptView('monthly')">📅 شهري</button>
       <button class="btn bsm" onclick="setRptView('expected')">📌 متوقع</button>
       <button class="btn bsm" onclick="setRptView('lost')">⚠ الفاقد</button>
+      <button class="btn bsm" onclick="setRptView('receipts')">🧾 وصولات</button>
       <button class="btn bt bsm" onclick="exportXLSX()">⬇ تصدير Excel</button>
     </div>
   </div>
@@ -2232,6 +2233,44 @@ function buildRpt(){
   const d1=v('r-d1'),d2=v('r-d2'),q=v('r-srch').toLowerCase().trim();
   if(rptView==='monthly'){buildMonthlyRpt(d1,d2,q);return;}
   if(rptView==='expected'){buildExpectedRpt(q);return;}
+  if(rptView==='receipts'){
+    // Monthly receipts report
+    const now=new Date();
+    const selMonth=parseInt(document.getElementById('r-d1')?.value?.split('-')[1])||now.getMonth()+1;
+    const selYear=parseInt(document.getElementById('r-d1')?.value?.split('-')[0])||now.getFullYear();
+    const monthLabel=selYear+'-'+(selMonth<10?'0':'')+selMonth;
+
+    // Collect all receipts in selected month
+    const receipts=[];
+    Object.values(db.students).forEach(s=>{
+      (s.payments||[]).filter(p=>!p.autoTransfer&&!p.prefilled&&p.receipt&&(p.date||'').startsWith(monthLabel)).forEach(p=>{
+        receipts.push({name:s.name,receipt:p.receipt,date:p.date,amount:p.amount,type:'طالب',sem:p.semester==2?'ف٢':'ف١'});
+      });
+    });
+    Object.values(db.schools).forEach(s=>{
+      (s.payments||[]).filter(p=>p.receipt&&(p.date||'').startsWith(monthLabel)).forEach(p=>{
+        receipts.push({name:s.name,receipt:p.receipt,date:p.date,amount:p.amount,type:'مدرسة',sem:''});
+      });
+    });
+    Object.values(db.centers).forEach(c=>{
+      (c.payments||[]).filter(p=>p.receipt&&(p.date||'').startsWith(monthLabel)).forEach(p=>{
+        receipts.push({name:c.name,receipt:p.receipt,date:p.date,amount:p.amount,type:'مركز',sem:''});
+      });
+    });
+    receipts.sort((a,b)=>a.date<b.date?-1:1);
+    const total=receipts.reduce((a,r)=>a+r.amount,0);
+
+    document.getElementById('rpt-out').innerHTML=receipts.length?
+      '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
+        '<div class="ct" style="margin:0">🧾 وصولات '+monthLabel+' ('+receipts.length+')</div>'+
+        '<div style="font-size:14px;font-weight:700;color:var(--gr-t)">'+fmt(total)+' د.أ</div>'+
+      '</div>'+
+      '<table class="tbl"><thead><tr><th>#</th><th>رقم الوصل</th><th>الاسم</th><th>التاريخ</th><th>المبلغ</th><th>النوع</th></tr></thead><tbody>'+
+      receipts.map((r,i)=>'<tr><td>'+(i+1)+'</td><td style="font-family:monospace;font-size:11px">'+r.receipt+'</td><td>'+r.name+'</td><td>'+r.date+'</td><td style="color:var(--gr-t);font-weight:600">'+fmt(r.amount)+'</td><td>'+r.type+(r.sem?' '+r.sem:'')+'</td></tr>').join('')+
+      '</tbody></table></div>':
+      '<div class="empty"><div class="ei">🧾</div>لا توجد وصولات في هذا الشهر<br><small style="color:var(--tx3)">غير نطاق التاريخ لاختيار شهر آخر</small></div>';
+    return;
+  }
   if(rptView==='lost'){buildLostRpt(q);return;}
 
   const students=obj(db.students).filter(s=>!q||s.name.toLowerCase().includes(q)||(s.groupName||'').toLowerCase().includes(q));
@@ -3864,7 +3903,7 @@ function renderProgressTab(filter){
   if(filter)progFilter=filter;
   const body=document.getElementById('progress-body');if(!body)return;
   const groups=Object.values(db.groups).sort((a,b)=>a.name.localeCompare(b.name,'ar'));
-  const soloStudents=Object.values(db.students).filter(s=>!s.groupId&&!s.withdrawn&&(s.totalUnits||s.currentUnit));
+  const soloStudents=Object.values(db.students).filter(s=>!s.groupId&&!s.withdrawn).sort((a,b)=>a.name.localeCompare(b.name,'ar'));
   const schools=Object.values(db.schools).sort((a,b)=>a.name.localeCompare(b.name,'ar'));
   const centers=Object.values(db.centers).sort((a,b)=>a.name.localeCompare(b.name,'ar'));
 
@@ -3875,15 +3914,32 @@ function renderProgressTab(filter){
     {key:'centers',label:'🏢 المراكز',count:centers.length},
   ];
 
-  const tabBar='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">'+
-    tabs.map(t=>'<button class="chip'+(progFilter===t.key?' on':'')+'" onclick="renderProgressTab(&quot;'+t.key+'&quot;)" style="font-size:12px">'+t.label+' ('+t.count+')</button>').join('')+
+  // Alpha filter for current category
+  const getItems=()=>{
+    if(progFilter==='groups')return groups;
+    if(progFilter==='students')return soloStudents;
+    if(progFilter==='schools')return schools;
+    return centers;
+  };
+  const letters=[...'ابتثجحخدذرزسشصضطظعغفقكلمنهوي'];
+  const alphaBar='<div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:8px">'+
+    letters.filter(l=>getItems().some(e=>e.name.trim()[0]===l)).map(l=>
+      '<button class="chip'+(window._progAlpha===l?' on':'')+'" onclick="window._progAlpha=(window._progAlpha===&quot;'+l+'&quot;?null:&quot;'+l+'&quot;);renderProgressTab()" style="min-width:28px;padding:3px 6px;font-size:12px">'+l+'</button>'
+    ).join('')+
+    (window._progAlpha?'<button class="chip" onclick="window._progAlpha=null;renderProgressTab()" style="font-size:12px">الكل</button>':'')+
   '</div>';
 
+  const tabBar='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+
+    tabs.map(t=>'<button class="chip'+(progFilter===t.key?' on':'')+'" onclick="window._progAlpha=null;renderProgressTab(&quot;'+t.key+'&quot;)" style="font-size:12px">'+t.label+' ('+t.count+')</button>').join('')+
+  '</div>'+alphaBar;
+
+  const alpha=window._progAlpha;
+  const applyAlpha=arr=>alpha?arr.filter(e=>e.name.trim()[0]===alpha):arr;
   let items=[];
-  if(progFilter==='groups')items=groups.map(g=>progressCard(g,'group',g.id));
-  else if(progFilter==='students')items=soloStudents.map(s=>progressCard(s,'student',s.id));
-  else if(progFilter==='schools')items=schools.map(s=>progressCard(s,'school',s.id));
-  else if(progFilter==='centers')items=centers.map(c=>progressCard(c,'center',c.id));
+  if(progFilter==='groups')items=applyAlpha(groups).map(g=>progressCard(g,'group',g.id));
+  else if(progFilter==='students')items=applyAlpha(soloStudents).map(s=>progressCard(s,'student',s.id));
+  else if(progFilter==='schools')items=applyAlpha(schools).map(s=>progressCard(s,'school',s.id));
+  else if(progFilter==='centers')items=applyAlpha(centers).map(c=>progressCard(c,'center',c.id));
 
   body.innerHTML=tabBar+(items.length?items.join(''):'<div class="empty"><div class="ei">📖</div>لا توجد بيانات في هذه الفئة</div>');
 }
