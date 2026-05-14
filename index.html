@@ -1802,6 +1802,7 @@ function renderStDet(id){
       <div class="br">
         <button class="btn bsm" onclick="copyLink('student','${id}')" style="font-size:11px">🔗 رابط</button>
         <button class="btn bsm" onclick="exportCard('student','${id}')" style="font-size:11px">📷 صورة</button>
+        <button class="btn bsm" onclick="exportStatement('student','${id}')" style="font-size:11px;background:var(--am-bg);color:var(--am-t)">📋 كشف حساب</button>
         <button class="btn bp" onclick="saveStEdit('${id}')">حفظ التعديلات</button>
         ${s.withdrawn?
           '<button class="btn ba" onclick="toggleWithdrawn(&quot;'+id+'&quot;)">↩ إعادة تفعيل</button>':
@@ -2057,6 +2058,7 @@ function renderScDet(id){
       </div>
       <div class="br">
         <button class="btn bsm" onclick="copyLink('school','${id}')" style="font-size:11px">🔗 رابط</button>
+        <button class="btn bsm" onclick="exportStatement('school','${id}')" style="font-size:11px;background:var(--am-bg);color:var(--am-t)">📋 كشف حساب</button>
         <button class="btn bsm" onclick="exportCard('school','${id}')" style="font-size:11px">📷 صورة</button>
         <button class="btn bp" onclick="saveScEdit('${id}')">حفظ</button>
         <button class="btn bd" onclick="delSc('${id}')">حذف المدرسة</button>
@@ -2115,6 +2117,7 @@ function renderCnDet(id){
     <div class="card">
       <div class="br">
         <button class="btn bsm" onclick="copyLink('center','${id}')" style="font-size:11px">🔗 رابط</button>
+        <button class="btn bsm" onclick="exportStatement('center','${id}')" style="font-size:11px;background:var(--am-bg);color:var(--am-t)">📋 كشف حساب</button>
         <button class="btn bsm" onclick="exportCard('center','${id}')" style="font-size:11px">📷 صورة</button>
         <button class="btn bd" onclick="delCn('${id}')">حذف المركز</button>
       </div>
@@ -2850,19 +2853,20 @@ function restoreFromFile(input){
   reader.readAsText(file);
 }
 function exportPayReceipt(type,eid,pid){
-  // Find the specific payment and temporarily make it "last" for exportCard
   const src=type==='student'?db.students:type==='school'?db.schools:db.centers;
   const e=src[eid];if(!e)return;
-  // Reorder payments so target payment is first
   const orig=e.payments?[...e.payments]:[];
   const pidx=orig.findIndex(p=>p.id===pid);
   if(pidx<0)return exportCard(type,eid);
-  // Temporarily reorder
+  // Auto-assign receipt number if missing
+  if(!orig[pidx].receipt){
+    orig[pidx].receipt=genReceipt(type);
+    saveDB();
+  }
   const reordered=[orig[pidx],...orig.filter((_,i)=>i!==pidx)];
   e.payments=reordered;
   exportCard(type,eid);
-  // Restore original order
-  setTimeout(()=>{e.payments=orig;},100);
+  setTimeout(()=>{e.payments=orig;},200);
 }
 
 function exportCard(type,eid){
@@ -2930,15 +2934,13 @@ function exportCard(type,eid){
   card.style.cssText='position:fixed;top:-9999px;left:-9999px;width:380px;background:#fff;border-radius:16px;overflow:hidden;font-family:Arial,sans-serif;direction:rtl;box-shadow:0 4px 20px rgba(0,0,0,.2)';
   card.innerHTML=`
     <!-- Header -->
-    <div style="background:linear-gradient(135deg,#1e1b4b 0%,#312e81 100%);padding:20px 24px;display:flex;align-items:center;gap:12px">
-      ${phoenixSVG}
-      <div>
-        <div style="color:#fff;font-size:18px;font-weight:700;letter-spacing:1px">English Master</div>
-        <div style="color:#a5b4fc;font-size:11px;margin-top:2px">وصل دفعة</div>
-      </div>
-      <div style="margin-right:auto;text-align:left">
-        <div style="color:#a5b4fc;font-size:10px">رقم الوصل</div>
-        <div style="color:#fff;font-size:13px;font-weight:700;font-family:monospace">${receiptNum}</div>
+    <div style="background:linear-gradient(135deg,#1e1b4b 0%,#312e81 100%);padding:22px 24px 18px;text-align:center;position:relative">
+      <div style="position:absolute;top:16px;right:18px">${phoenixSVG}</div>
+      <div style="color:#fff;font-size:24px;font-weight:800;letter-spacing:2px;font-family:Georgia,serif;text-shadow:0 2px 8px rgba(0,0,0,.3)">English Master</div>
+      <div style="color:#a5b4fc;font-size:12px;margin-top:4px;letter-spacing:1px">وصل دفعة</div>
+      <div style="position:absolute;top:16px;left:18px;text-align:left">
+        <div style="color:#a5b4fc;font-size:9px">رقم الوصل</div>
+        <div style="color:#fff;font-size:12px;font-weight:700;font-family:monospace">${receiptNum}</div>
       </div>
     </div>
 
@@ -3002,6 +3004,105 @@ function exportCard(type,eid){
     document.body.removeChild(card);
     alert('حدث خطأ أثناء إنشاء الوصل');
   });
+}
+
+function exportStatement(type,eid){
+  const src=type==='student'?db.students:type==='school'?db.schools:db.centers;
+  const e=src[eid];if(!e)return;
+
+  let name,tgt,pays;
+  if(type==='student'){
+    name=e.name;tgt=target(e);
+    pays=[...(e.payments||[])].filter(p=>!p.autoTransfer&&!p.prefilled).sort((a,b)=>a.date<b.date?-1:1);
+  } else if(type==='school'){
+    name=e.name;tgt=e.total;
+    pays=[...(e.payments||[])].sort((a,b)=>a.date<b.date?-1:1);
+  } else {
+    name=e.name;tgt=e.customTotal||e.total||0;
+    pays=[...(e.payments||[])].sort((a,b)=>a.date<b.date?-1:1);
+  }
+  const totalPaidAmt=pays.reduce((a,p)=>a+p.amount,0);
+  const remaining=tgt-totalPaidAmt;
+  const today=new Date().toISOString().split('T')[0];
+
+  const phoenixSVG=`<svg width="36" height="36" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="fg2" cx="50%" cy="60%" r="50%"><stop offset="0%" style="stop-color:#f97316"/><stop offset="100%" style="stop-color:#dc2626"/></radialGradient></defs><ellipse cx="50" cy="62" rx="14" ry="18" fill="url(#fg2)"/><circle cx="50" cy="40" r="10" fill="#f97316"/><path d="M44 33 Q50 20 56 33" stroke="#fbbf24" stroke-width="2" fill="none"/><path d="M36 55 Q20 40 18 60 Q28 58 36 65" fill="#ea580c"/><path d="M64 55 Q80 40 82 60 Q72 58 64 65" fill="#ea580c"/><path d="M44 78 Q38 90 32 95" stroke="#f97316" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M50 80 Q50 93 48 98" stroke="#fbbf24" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M56 78 Q62 90 68 95" stroke="#f97316" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="47" cy="38" r="2" fill="#1e1b4b"/><path d="M50 45 L46 49 L50 47 L54 49 Z" fill="#fbbf24"/></svg>`;
+
+  let runningTotal=0;
+  const rows=pays.map((p,i)=>{
+    runningTotal+=p.amount;
+    const sem=p.semester==2?'ف٢':'ف١';
+    return'<tr style="border-bottom:1px solid #f3f4f6">'+
+      '<td style="padding:7px 8px;font-size:11px;color:#6b7280;text-align:right">'+(i+1)+'</td>'+
+      '<td style="padding:7px 8px;font-size:12px;font-family:monospace">'+(p.receipt||'—')+'</td>'+
+      '<td style="padding:7px 8px;font-size:12px">'+(p.date||'—')+'</td>'+
+      '<td style="padding:7px 8px;font-size:12px;font-weight:600;color:#15803d;text-align:left">'+fmt(p.amount)+'</td>'+
+      '<td style="padding:7px 8px;font-size:11px;color:#6366f1;text-align:left">'+sem+'</td>'+
+      '<td style="padding:7px 8px;font-size:12px;color:#374151;text-align:left">'+fmt(runningTotal)+'</td>'+
+    '</tr>';
+  }).join('');
+
+  const card=document.createElement('div');
+  card.style.cssText='position:fixed;top:-9999px;left:-9999px;width:520px;background:#fff;border-radius:16px;overflow:hidden;font-family:Arial,sans-serif;direction:rtl;box-shadow:0 4px 20px rgba(0,0,0,.2)';
+  card.innerHTML=`
+    <div style="background:linear-gradient(135deg,#1e1b4b 0%,#312e81 100%);padding:20px 24px 16px;text-align:center;position:relative">
+      <div style="position:absolute;top:14px;right:16px">${phoenixSVG}</div>
+      <div style="color:#fff;font-size:22px;font-weight:800;letter-spacing:2px;font-family:Georgia,serif">English Master</div>
+      <div style="color:#a5b4fc;font-size:11px;margin-top:3px;letter-spacing:1px">كشف حساب</div>
+    </div>
+    <div style="padding:14px 20px;background:#f8f7ff;border-bottom:2px dashed #e5e7eb;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:11px;color:#6b7280">الاسم</div>
+        <div style="font-size:16px;font-weight:700;color:#111">${name}</div>
+      </div>
+      <div style="text-align:left">
+        <div style="font-size:11px;color:#6b7280">تاريخ الكشف</div>
+        <div style="font-size:12px;font-weight:600;color:#374151">${today}</div>
+      </div>
+    </div>
+    <div style="padding:14px 20px">
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="background:#f9fafb;border-bottom:2px solid #e5e7eb">
+            <th style="padding:8px;font-size:10px;color:#6b7280;font-weight:600;text-align:right">#</th>
+            <th style="padding:8px;font-size:10px;color:#6b7280;font-weight:600;text-align:right">رقم الوصل</th>
+            <th style="padding:8px;font-size:10px;color:#6b7280;font-weight:600;text-align:right">التاريخ</th>
+            <th style="padding:8px;font-size:10px;color:#6b7280;font-weight:600;text-align:left">المبلغ</th>
+            <th style="padding:8px;font-size:10px;color:#6b7280;font-weight:600;text-align:left">الفصل</th>
+            <th style="padding:8px;font-size:10px;color:#6b7280;font-weight:600;text-align:left">الإجمالي</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div style="padding:12px 20px;background:#f9fafb;border-top:2px solid #e5e7eb">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+        <div style="text-align:center;background:#fff;border-radius:8px;padding:8px;border:1px solid #e5e7eb">
+          <div style="font-size:10px;color:#6b7280">المستهدف</div>
+          <div style="font-size:14px;font-weight:700;color:#374151">${fmt(tgt)}</div>
+        </div>
+        <div style="text-align:center;background:#f0fdf4;border-radius:8px;padding:8px;border:1px solid #86efac">
+          <div style="font-size:10px;color:#6b7280">المدفوع</div>
+          <div style="font-size:14px;font-weight:700;color:#15803d">${fmt(totalPaidAmt)}</div>
+        </div>
+        <div style="text-align:center;background:${remaining>0?'#fff7ed':'#f0fdf4'};border-radius:8px;padding:8px;border:1px solid ${remaining>0?'#fed7aa':'#86efac'}">
+          <div style="font-size:10px;color:#6b7280">المتبقي</div>
+          <div style="font-size:14px;font-weight:700;color:${remaining>0?'#ea580c':'#15803d'}">${fmt(remaining)}</div>
+        </div>
+      </div>
+    </div>
+    <div style="background:#f9fafb;padding:10px 20px;display:flex;justify-content:space-between;border-top:1px solid #e5e7eb">
+      <div style="font-size:10px;color:#9ca3af">Nash'at Kandah</div>
+      <div style="font-size:10px;color:#6b7280;font-family:monospace">078-696-3399</div>
+    </div>
+  `;
+  document.body.appendChild(card);
+  html2canvas(card,{scale:2,backgroundColor:'#fff',useCORS:true}).then(canvas=>{
+    document.body.removeChild(card);
+    const link=document.createElement('a');
+    link.download='كشف-حساب-'+name+'-'+today+'.png';
+    link.href=canvas.toDataURL('image/png');
+    link.click();
+  }).catch(()=>document.body.removeChild(card));
 }
 
 function copyLink(type,id){
