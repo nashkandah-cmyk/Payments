@@ -1027,10 +1027,11 @@ function assignAllReceipts(){
 function genReceipt(type){
   if(!db.counters)db.counters={student:0,school:0,center:0};
   if(!db.settings)db.settings={};
-  const year=new Date().getFullYear().toString();
+  const yr=new Date().getFullYear().toString().slice(-1); // last digit: 6 for 2026
+  const prefix={student:'A',school:'C',center:'B'}[type]||'A';
   db.counters[type]=(db.counters[type]||0)+1;
   const num=String(db.counters[type]).padStart(4,'0');
-  return year+'-'+num;
+  return prefix+yr+'-'+num; // e.g. A6-0001
 }
 function rw(l,v){return`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:5px 0;border-bottom:.5px solid var(--bor)"><span style="color:var(--tx2);font-size:11px">${l}</span><span style="font-size:12px;font-weight:500;text-align:left">${v}</span></div>`;}
 
