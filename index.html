@@ -264,7 +264,8 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
       <div class="f"><label>المبلغ الفصلي</label><input type="text" inputmode="decimal" id="st-sem" placeholder="تلقائي"/></div>
       <div class="f"><label>المستهدف</label><input type="text" inputmode="decimal" id="st-tgt" placeholder="بحسب الفصول" readonly/></div>
     </div>
-    <div class="fg fg1">
+    <div class="fg fg2">
+      <div class="f"><label>رقم التواصل</label><input id="st-phone" placeholder="07X-XXX-XXXX" inputmode="tel"/></div>
       <div class="f"><label>ملاحظات</label><input id="st-notes" placeholder="اختياري"/></div>
     </div>
     <div class="dvd"></div>
@@ -1101,7 +1102,7 @@ function addStudent(){
   const annual=parseFloat(v('st-ann'))||0;
   const semester=parseFloat(v('st-sem'))||annual/2;
   const id=genId();
-  const newSt={id,name,groupId:gid,groupName:g?g.name:'',annual,semester,notes:v('st-notes').trim(),enrollType:stEnroll,payments:[],sem1Closed:false,sem2Closed:false,createdAt:new Date().toISOString()};
+  const newSt={id,name,groupId:gid,groupName:g?g.name:'',annual,semester,notes:v('st-notes').trim(),phone:v('st-phone').trim(),enrollType:stEnroll,payments:[],sem1Closed:false,sem2Closed:false,createdAt:new Date().toISOString()};
   // Create installment plan if checkbox is checked
   const makePlan=document.getElementById('st-make-plan')?.checked;
   if(makePlan){
@@ -1120,7 +1121,7 @@ function addStudent(){
   }
   db.students[id]=newSt;
   saveDB();al('st-al','تم حفظ الطالب '+name+(makePlan?' مع جدول دفعات':'')+' ✓','s');
-  ['st-name','st-ann','st-sem','st-tgt','st-notes'].forEach(x=>set(x,''));
+  ['st-name','st-ann','st-sem','st-tgt','st-notes','st-phone'].forEach(x=>set(x,''));
   set('st-grp','');setEnr('both');
   if(document.getElementById('st-make-plan'))document.getElementById('st-make-plan').checked=false;
   if(document.getElementById('st-plan-fields'))document.getElementById('st-plan-fields').style.display='none';
@@ -1166,7 +1167,7 @@ function renderStudents(q){
     return`<div class="item" onclick="openDet('student','${s.id}')">
       <div class="irow">
         <div><div class="iname">${s.name} ${eTag[s.enrollType||'both']||''}</div>
-          <div class="isub">${s.groupName||'بدون مجموعة'} · ${(s.payments||[]).length} دفعة ${s1c}${s2c}</div>
+          <div class="isub">${s.groupName||'بدون مجموعة'} · ${(s.payments||[]).length} دفعة ${s1c}${s2c}${s.phone?' · 📞 '+s.phone:''}</div>
         </div>
         <div class="iright"><div style="font-size:12px;font-weight:500;color:var(--${r>0?'rd':'gr'}-t)">${fmt(r)} د.أ</div><div style="font-size:10px;color:var(--tx3)">${pct.toFixed(0)}% مسدّد</div></div>
       </div>
@@ -1719,7 +1720,7 @@ function renderStDet(id){
         <div class="av">${ini}</div>
         <div>
           <div style="font-size:15px;font-weight:600">${s.name}</div>
-          <div style="font-size:11px;color:var(--tx3)">${s.groupName||'بدون مجموعة'}${s.notes?' · '+s.notes:''}</div>
+          <div style="font-size:11px;color:var(--tx3)">${s.groupName||'بدون مجموعة'}${s.phone?' · 📞 <a href="tel:'+s.phone+'" style="color:var(--bl-t);text-decoration:none">'+s.phone+'</a>':''}${s.notes?' · '+s.notes:''}</div>
           <span class="tag tp" style="display:inline-block;margin-top:3px">${eL}</span>
         </div>
       </div>
@@ -1821,6 +1822,7 @@ function renderStDet(id){
         <div class="f"><label>المبلغ الفصلي</label><input type="text" inputmode="decimal" id="e-sem" value="${s.semester}"/></div>
       </div>
       <div class="fg fg1" style="margin-bottom:8px">
+        <div class="f"><label>رقم التواصل</label><input id="e-phone" value="${esc(s.phone||'')}" placeholder="07X-XXX-XXXX" inputmode="tel"/></div>
         <div class="f"><label>ملاحظات</label><input id="e-notes" value="${esc(s.notes||'')}"/></div>
       </div>
       ${!s.groupId?'<div class="dvd"></div><div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--tx2)">إعدادات المادة (طالب منفرد)</div><div class="fg fg3"><div class="f"><label>عدد الوحدات</label><input type="text" inputmode="numeric" id="e-units" value="'+(s.totalUnits||10)+'"/></div><div class="f"><label>دروس/وحدة</label><input type="text" inputmode="numeric" id="e-lpu" value="'+(s.lessonsPerUnit||7)+'"/></div><div class="f"><label>سعر الدوسية (د.أ)</label><input type="text" inputmode="decimal" id="e-dosprice" value="'+(s.dosiatPrice||'')+'"/></div></div><div class="fg fg2" style="margin-bottom:8px"><div class="f"><label>الوحدة الحالية</label><input type="text" inputmode="numeric" id="e-curunit" value="'+(s.currentUnit||'')+'"/></div><div class="f"><label>الدرس الحالي</label><input type="text" inputmode="numeric" id="e-curlesson" value="'+(s.currentLesson||'')+'"/></div></div>':''}
@@ -1949,6 +1951,7 @@ function saveStEdit(id){
   s.groupId=gid;s.groupName=gid&&db.groups[gid]?db.groups[gid].name:'';
   s.annual=parseFloat(v('e-ann'))||0;s.semester=parseFloat(v('e-sem'))||0;
   s.notes=v('e-notes').trim();
+  s.phone=v('e-phone').trim();
   // Save standalone student progress/dosiat if no group
   if(!s.groupId){
     const eu=parseInt(v('e-units'));const el=parseInt(v('e-lpu'));
