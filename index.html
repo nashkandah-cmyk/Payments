@@ -220,6 +220,7 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
   <button onclick="pullFromSheets()" class="btn bsm" title="تحديث من السحابة" style="font-size:16px;padding:5px 10px">🔄</button>
   <button onclick="backupData()" class="btn bsm" title="نسخة احتياطية" style="font-size:16px;padding:5px 10px">💾</button>
   <label title="استعادة من ملف" class="btn bsm" style="font-size:16px;padding:5px 10px;cursor:pointer">📂<input type="file" accept=".json" style="display:none" onchange="restoreFromFile(this)"/></label>
+  <button onclick="assignAllReceipts()" class="btn bsm" title="توليد أرقام وصل للدفعات القديمة" style="font-size:11px;padding:5px 8px">🔢 أرقام</button>
 
 </header>
 
@@ -997,6 +998,29 @@ document.addEventListener('click',e=>{
 });
 
 // ── AUTO RECEIPT NUMBERING ──────────────────────────────────────────────────
+function assignAllReceipts(){
+  let count=0;
+  Object.values(db.students).forEach(s=>{
+    (s.payments||[]).forEach(p=>{
+      if(!p.receipt&&!p.autoTransfer&&!p.prefilled){
+        p.receipt=genReceipt('student');count++;
+      }
+    });
+  });
+  Object.values(db.schools).forEach(s=>{
+    (s.payments||[]).forEach(p=>{
+      if(!p.receipt){p.receipt=genReceipt('school');count++;}
+    });
+  });
+  Object.values(db.centers).forEach(c=>{
+    (c.payments||[]).forEach(p=>{
+      if(!p.receipt){p.receipt=genReceipt('center');count++;}
+    });
+  });
+  if(count>0){saveDB();alert('✓ تم توليد '+count+' رقم وصل جديد');}
+  else{alert('كل الدفعات عندها أرقام وصل بالفعل');}
+}
+
 function genReceipt(type){
   if(!db.counters)db.counters={student:0,school:0,center:0};
   if(!db.settings)db.settings={};
@@ -2879,6 +2903,7 @@ function exportCard(type,eid){
     name=e.name;
     pays=[...(e.payments||[])].filter(p=>!p.autoTransfer&&!p.prefilled).sort((a,b)=>b.date>a.date?1:-1);
     lastPay=pays[0];
+    if(lastPay&&!lastPay.receipt){lastPay.receipt=genReceipt(type);saveDB();}
     thisPayAmt=lastPay?lastPay.amount:0;
     receiptNum=lastPay?.receipt||'—';
     receiptDate=lastPay?lastPay.date:'—';
@@ -2888,6 +2913,7 @@ function exportCard(type,eid){
     name=e.name;
     pays=[...(e.payments||[])].sort((a,b)=>b.date>a.date?1:-1);
     lastPay=pays[0];
+    if(lastPay&&!lastPay.receipt){lastPay.receipt=genReceipt(type);saveDB();}
     thisPayAmt=lastPay?lastPay.amount:0;
     receiptNum=lastPay?.receipt||'—';
     receiptDate=lastPay?lastPay.date:'—';
@@ -2896,6 +2922,7 @@ function exportCard(type,eid){
     name=e.name;
     pays=[...(e.payments||[])].sort((a,b)=>b.date>a.date?1:-1);
     lastPay=pays[0];
+    if(lastPay&&!lastPay.receipt){lastPay.receipt=genReceipt(type);saveDB();}
     thisPayAmt=lastPay?lastPay.amount:0;
     receiptNum=lastPay?.receipt||'—';
     receiptDate=lastPay?lastPay.date:'—';
@@ -2937,7 +2964,7 @@ function exportCard(type,eid){
     <div style="background:linear-gradient(135deg,#1e1b4b 0%,#312e81 100%);padding:22px 24px 18px;text-align:center;position:relative">
       <div style="position:absolute;top:16px;right:18px">${phoenixSVG}</div>
       <div style="color:#fff;font-size:24px;font-weight:800;letter-spacing:2px;font-family:Georgia,serif;text-shadow:0 2px 8px rgba(0,0,0,.3)">English Master</div>
-      <div style="color:#a5b4fc;font-size:12px;margin-top:4px;letter-spacing:1px">وصل دفعة</div>
+      <div style="color:#a5b4fc;font-size:13px;margin-top:4px;font-family:Arial,sans-serif;letter-spacing:0">وصل دفعة</div>
       <div style="position:absolute;top:16px;left:18px;text-align:left">
         <div style="color:#a5b4fc;font-size:9px">رقم الوصل</div>
         <div style="color:#fff;font-size:12px;font-weight:700;font-family:monospace">${receiptNum}</div>
@@ -3047,7 +3074,7 @@ function exportStatement(type,eid){
     <div style="background:linear-gradient(135deg,#1e1b4b 0%,#312e81 100%);padding:20px 24px 16px;text-align:center;position:relative">
       <div style="position:absolute;top:14px;right:16px">${phoenixSVG}</div>
       <div style="color:#fff;font-size:22px;font-weight:800;letter-spacing:2px;font-family:Georgia,serif">English Master</div>
-      <div style="color:#a5b4fc;font-size:11px;margin-top:3px;letter-spacing:1px">كشف حساب</div>
+      <div style="color:#a5b4fc;font-size:13px;margin-top:3px;font-family:Arial,sans-serif;letter-spacing:0">كشف حساب</div>
     </div>
     <div style="padding:14px 20px;background:#f8f7ff;border-bottom:2px dashed #e5e7eb;display:flex;justify-content:space-between;align-items:center">
       <div>
