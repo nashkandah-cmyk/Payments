@@ -2980,10 +2980,12 @@ function exportCard(type,eid,specificPid){
     receiptNum=lastPay?.receipt||'—';
     receiptDate=lastPay?lastPay.date:'—';
   }
+  // paidBefore = only payments that happened BEFORE this payment (by date)
+  const payDate=lastPay?.date||'';
   const paidBefore=type==='student'?
-    (e.payments||[]).filter(p=>!p.autoTransfer&&!p.prefilled&&p.id!==lastPay?.id).reduce((a,p)=>a+p.amount,0):
-    (e.payments||[]).filter(p=>p.id!==lastPay?.id).reduce((a,p)=>a+p.amount,0);
-  // Override r to show remaining AT THE TIME of this payment
+    (e.payments||[]).filter(p=>!p.autoTransfer&&!p.prefilled&&p.id!==lastPay?.id&&(p.date||'')<payDate).reduce((a,p)=>a+p.amount,0):
+    (e.payments||[]).filter(p=>p.id!==lastPay?.id&&(p.date||'')<payDate).reduce((a,p)=>a+p.amount,0);
+  // Remaining AT THE TIME of this payment
   r=tgt-(paidBefore+thisPayAmt);
   const isDone=r<=0;
 
