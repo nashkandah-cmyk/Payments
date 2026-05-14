@@ -228,6 +228,7 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
 <nav>
   <button class="nb on" onclick="TAB('schedule')">📅 البرنامج</button>
   <button class="nb" onclick="TAB('progress')">📖 السير</button>
+  <button class="nb" onclick="TAB('exams')">📝 الامتحانات</button>
   <button class="nb" onclick="TAB('pay')">💰 تسجيل دفعة</button>
   <button class="nb" onclick="TAB('groups')">🗂 المجموعات</button>
   <button class="nb" onclick="TAB('students')">👥 الطلاب</button>
@@ -564,6 +565,11 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
 <!-- PROGRESS TAB -->
 <div id="tab-progress" style="display:none">
   <div id="progress-body"></div>
+</div>
+
+<!-- EXAMS TAB -->
+<div id="tab-exams" style="display:none">
+  <div id="exams-body"></div>
 </div>
 
 <!-- DOSIAT TAB -->
@@ -1052,10 +1058,10 @@ function closeModal(e){if(!e||e.target.id==='modal')document.getElementById('mod
 
 // ── TABS ──────────────────────────────────────────────────────────────────────
 function TAB(t){
-  ['students','add-student','groups','add-group','pay','schools','centers','schedule','dosiat','progress','reports','detail'].forEach(x=>{
+  ['students','add-student','groups','add-group','pay','schools','centers','schedule','dosiat','progress','exams','reports','detail'].forEach(x=>{
     const e=document.getElementById('tab-'+x);if(e)e.style.display='none';
   });
-  const mainTabs=['schedule','progress','pay','groups','students','centers','schools','dosiat','reports'];
+  const mainTabs=['schedule','progress','exams','pay','groups','students','centers','schools','dosiat','reports'];
   document.querySelectorAll('.nb').forEach((b,i)=>b.classList.toggle('on',mainTabs.indexOf(t)===i));
   const el=document.getElementById('tab-'+t);if(el)el.style.display='block';
   if(t==='students'){popGrpFilter();renderStudents('');}
@@ -1067,6 +1073,7 @@ function TAB(t){
   if(t==='schedule'){renderSchedule();}
   if(t==='dosiat'){renderDosiatTab();}
   if(t==='progress'){renderProgressTab();}
+  if(t==='exams'){renderExamsTab();}
   if(t==='reports'){initRptDates();buildRpt();}
   if(t==='pay')resetPW();
 }
@@ -3419,6 +3426,9 @@ function renderSchedule(){
 
     const hasDate=daySessions.length>0;
     const isToday2=schedWeekOffset===0&&dayKey===DAYS_EN[new Date().getDay()];
+    // Get exams for this day
+    initExamsDb();
+    const dayExams=Object.values(db.exams||{}).filter(e=>e.date===dateStr);
     const todayDot=isToday2?'● ':'';
     const mbottom=hasDate?'10px':'0';
     html+='<div class="card" style="margin-bottom:10px">'+
@@ -3426,7 +3436,8 @@ function renderSchedule(){
         '<div style="font-weight:600;font-size:14px;color:'+(isToday2?'var(--bl-t)':'var(--tx1)')+'">'+todayDot+DAYS_AR[di]+' <span style="font-size:11px;color:var(--tx3);font-weight:400">'+dateStr+'</span></div>'+
         '<button class="btn bsm" onclick="showAddSession(&quot;'+dayKey+'&quot;,null)" style="font-size:11px;background:var(--gr-bg);color:var(--gr-t)">+ حصة</button>'+
       '</div>'+
-      (daySessions.length===0?'<div style="font-size:12px;color:var(--tx3);padding:4px 0">لا توجد حصص</div>':
+      (dayExams.length?dayExams.map(e=>'<div style="padding:6px 10px;background:var(--rd-bg);border-radius:var(--rs);margin-bottom:5px;font-size:12px;color:var(--rd-t);font-weight:600">📝 '+esc(e.title||'امتحان')+' · '+fmt12(e.time)+'</div>').join(''):'')+
+      (daySessions.length===0&&!dayExams.length?'<div style="font-size:12px;color:var(--tx3);padding:4px 0">لا توجد حصص</div>':
         daySessions.map(s=>{
           const color=getEntityColor(s.entityId,s.entityType);
           const name=getEntityName(s.entityId,s.entityType);
@@ -3695,18 +3706,186 @@ function renderGroupSchedule(gid){
   return rows.map(se=>sessRowHtml(se,color,false,'renderGrpDet(&quot;'+gid+'&quot;)')).join('');
 }
 
+// ── EXAMS TAB ────────────────────────────────────────────────────────────────
+function initExamsDb(){if(!db.exams)db.exams={};}
+
+function renderExamsTab(){
+  initExamsDb();
+  const body=document.getElementById('exams-body');if(!body)return;
+  const now=new Date();
+  const upcoming=Object.values(db.exams).filter(e=>new Date(e.date+' '+e.time)>=now).sort((a,b)=>a.date+a.time<b.date+b.time?-1:1);
+  const past=Object.values(db.exams).filter(e=>new Date(e.date+' '+e.time)<now).sort((a,b)=>a.date+a.time>b.date+b.time?-1:1);
+
+  const examRow=e=>{
+    const name=getEntityName(e.entityId,e.entityType);
+    const isPast=new Date(e.date+' '+e.time)<now;
+    const daysLeft=Math.ceil((new Date(e.date+' '+e.time)-now)/(1000*60*60*24));
+    return'<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--sur2);border-radius:var(--rs);margin-bottom:6px;opacity:'+(isPast?'0.6':'1')+'">'+
+      '<div style="width:4px;height:40px;border-radius:2px;background:'+(isPast?'var(--tx3)':'var(--rd-t)')+';flex-shrink:0"></div>'+
+      '<div style="flex:1">'+
+        '<div style="font-size:13px;font-weight:700">'+esc(e.title||'امتحان')+'</div>'+
+        '<div style="font-size:12px;color:var(--tx3)">'+name+' · '+e.date+' · '+fmt12(e.time)+'</div>'+
+        (e.note?'<div style="font-size:11px;color:var(--tx3)">'+esc(e.note)+'</div>':'')+
+      '</div>'+
+      (!isPast?'<div style="font-size:11px;font-weight:700;color:var(--rd-t);background:var(--rd-bg);padding:3px 8px;border-radius:99px">'+daysLeft+' يوم</div>':'')+
+      '<button class="btn bd bsm" onclick="delExam(&quot;'+e.id+'&quot;)" style="font-size:11px;padding:3px 7px">✕</button>'+
+    '</div>';
+  };
+
+  body.innerHTML=
+    '<div class="card" style="margin-bottom:12px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'+
+        '<div class="ct" style="margin:0">الامتحانات القادمة ('+upcoming.length+')</div>'+
+        '<button class="btn bp bsm" onclick="showAddExam()">+ إضافة امتحان</button>'+
+      '</div>'+
+      (upcoming.length?upcoming.map(examRow).join(''):'<div style="font-size:12px;color:var(--tx3);text-align:center;padding:8px">لا توجد امتحانات قادمة</div>')+
+    '</div>'+
+    (past.length?'<div class="card"><div class="ct" style="margin-bottom:10px">السابقة ('+past.length+')</div>'+past.slice(0,5).map(examRow).join('')+'</div>':'');
+}
+
+function showAddExam(editId){
+  initScheduleDb();initExamsDb();
+  const ex=editId?db.exams[editId]:null;
+
+  // Build entity options
+  const grpOpts=Object.values(db.groups).sort((a,b)=>a.name.localeCompare(b.name,'ar'))
+    .map(g=>'<option value="group:'+g.id+'"'+(ex&&ex.entityId===g.id?' selected':'')+'>'+g.name+(g.generation?' ('+g.generation+')':'')+'</option>').join('');
+  const stOpts=Object.values(db.students).filter(s=>!s.withdrawn).sort((a,b)=>a.name.localeCompare(b.name,'ar'))
+    .map(s=>'<option value="student:'+s.id+'"'+(ex&&ex.entityId===s.id?' selected':'')+'>'+s.name+'</option>').join('');
+
+  showModal(editId?'تعديل الامتحان':'إضافة امتحان',`
+    <div class="f" style="margin-bottom:8px">
+      <label>العنوان</label>
+      <input id="ex-title" value="${esc(ex?.title||'')}" placeholder="مثال: اختبار الوحدة الأولى"/>
+    </div>
+    <div class="f" style="margin-bottom:8px">
+      <label>المجموعة / الطالب</label>
+      <select id="ex-entity" onchange="loadExamSessions()">
+        <option value="">— اختر —</option>
+        <optgroup label="المجموعات">${grpOpts}</optgroup>
+        <optgroup label="الطلاب">${stOpts}</optgroup>
+      </select>
+    </div>
+    <div id="ex-sessions-wrap" style="margin-bottom:8px;display:${ex?'block':'none'}">
+      <label style="font-size:12px;font-weight:600;color:var(--tx2)">اختر الحصة</label>
+      <div id="ex-sessions" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${ex?'<div style="font-size:12px;color:var(--tx3)">اختر المجموعة/الطالب أولاً</div>':''}</div>
+    </div>
+    <div class="fg fg2">
+      <div class="f"><label>التاريخ</label><input type="date" id="ex-date" value="${ex?.date||new Date().toISOString().split('T')[0]}"/></div>
+      <div class="f"><label>الوقت</label><select id="ex-time">${timeOpts(ex?.time||'10:00')}</select></div>
+    </div>
+    <div class="f" style="margin-bottom:8px">
+      <label>ملاحظة (اختياري)</label>
+      <input id="ex-note" value="${esc(ex?.note||'')}" placeholder="مثال: الفصل الدراسي الأول"/>
+    </div>
+  `,`<button class="btn bp" onclick="saveExam(${editId?'&quot;'+editId+'&quot;':'null'})">حفظ</button>
+     <button class="btn" onclick="closeModal()">إلغاء</button>`);
+}
+
+function loadExamSessions(){
+  initScheduleDb();
+  const wrap=document.getElementById('ex-sessions-wrap');
+  const box=document.getElementById('ex-sessions');
+  if(!wrap||!box)return;
+  const entityRaw=v('ex-entity');
+  if(!entityRaw){wrap.style.display='none';return;}
+  const [entityType,entityId]=entityRaw.split(':');
+  wrap.style.display='block';
+
+  // Get sessions for this entity
+  const sess=Object.values(db.schedule.sessions).filter(s=>s.entityId===entityId&&s.entityType===entityType&&s.status!=='hold');
+  if(!sess.length){box.innerHTML='<div style="font-size:12px;color:var(--tx3)">لا توجد حصص مجدولة لهذا الاختيار</div>';return;}
+
+  const DAYS_AR_L=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+  const DAYS_EN_L=['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+
+  let btns=[];
+  sess.forEach(s=>{
+    const dayLabel=DAYS_AR_L[DAYS_EN_L.indexOf(s.day)];
+    btns.push({day:s.day,time:s.time,label:dayLabel+' '+fmt12(s.time)});
+    if(s.recurrence==='multiday'){
+      (s.extraDays||[]).forEach(d=>{
+        const t=(s.extraDayTimes||{})[d]||s.time;
+        btns.push({day:d,time:t,label:DAYS_AR_L[DAYS_EN_L.indexOf(d)]+' '+fmt12(t)});
+      });
+    }
+  });
+
+  box.innerHTML=btns.map(b=>
+    '<button class="chip" onclick="pickExamSession(&quot;'+b.day+'&quot;,&quot;'+b.time+'&quot;)" style="font-size:11px">'+b.label+'</button>'
+  ).join('');
+}
+
+function pickExamSession(day,time){
+  // Find next occurrence of this day
+  const DAYS_EN_L=['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+  const today=new Date();
+  const todayDay=today.getDay();
+  const targetDay=DAYS_EN_L.indexOf(day);
+  let daysAhead=targetDay-todayDay;
+  if(daysAhead<=0)daysAhead+=7;
+  const nextDate=new Date(today);
+  nextDate.setDate(today.getDate()+daysAhead);
+  const dateStr=nextDate.toISOString().split('T')[0];
+  // Update date and time fields
+  const dateEl=document.getElementById('ex-date');
+  const timeEl=document.getElementById('ex-time');
+  if(dateEl)dateEl.value=dateStr;
+  if(timeEl)timeEl.value=time;
+  // Highlight selected
+  document.querySelectorAll('#ex-sessions .chip').forEach(b=>b.classList.remove('on'));
+  event.target.classList.add('on');
+}
+
+function saveExam(editId){
+  initExamsDb();
+  const entityRaw=v('ex-entity');if(!entityRaw)return;
+  const [entityType,entityId]=entityRaw.split(':');
+  const id=editId||genId();
+  db.exams[id]={id,
+    title:v('ex-title').trim()||'امتحان',
+    entityId,entityType,
+    date:v('ex-date'),
+    time:v('ex-time'),
+    note:v('ex-note').trim(),
+    createdAt:new Date().toISOString()
+  };
+  saveDB();closeModal();renderExamsTab();
+}
+
+function delExam(id){
+  if(!confirm('حذف هذا الامتحان؟'))return;
+  initExamsDb();delete db.exams[id];saveDB();renderExamsTab();
+}
+
 // ── PROGRESS TAB ─────────────────────────────────────────────────────────────
-function renderProgressTab(){
-  const body=document.getElementById('progress-body');
-  if(!body)return;
+let progFilter='groups';
+function renderProgressTab(filter){
+  if(filter)progFilter=filter;
+  const body=document.getElementById('progress-body');if(!body)return;
   const groups=Object.values(db.groups).sort((a,b)=>a.name.localeCompare(b.name,'ar'));
   const soloStudents=Object.values(db.students).filter(s=>!s.groupId&&!s.withdrawn&&(s.totalUnits||s.currentUnit));
-  const allE=[...groups,...soloStudents];
-  const doneAll=allE.filter(e=>(e.currentUnit||0)>=(e.totalUnits||10)).length;
-  let html='<div class="card" style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:13px;font-weight:600">المجموعات والطلاب: '+allE.length+'</div><div style="font-size:12px;color:var(--gr-t)">'+doneAll+' أنهوا المنهج ✓</div></div></div>';
-  if(groups.length){html+='<div style="font-size:12px;font-weight:700;color:var(--tx3);margin-bottom:8px">المجموعات</div>';html+=groups.map(g=>progressCard(g,'group',g.id)).join('');}
-  if(soloStudents.length){html+='<div style="font-size:12px;font-weight:700;color:var(--tx3);margin:12px 0 8px">طلاب مستقلون</div>';html+=soloStudents.map(s=>progressCard(s,'student',s.id)).join('');}
-  body.innerHTML=html||'<div class="empty"><div class="ei">📖</div>لا توجد بيانات</div>';
+  const schools=Object.values(db.schools).sort((a,b)=>a.name.localeCompare(b.name,'ar'));
+  const centers=Object.values(db.centers).sort((a,b)=>a.name.localeCompare(b.name,'ar'));
+
+  const tabs=[
+    {key:'groups',label:'🗂 المجموعات',count:groups.length},
+    {key:'students',label:'👤 طلاب مستقلون',count:soloStudents.length},
+    {key:'schools',label:'🏫 المدارس',count:schools.length},
+    {key:'centers',label:'🏢 المراكز',count:centers.length},
+  ];
+
+  const tabBar='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">'+
+    tabs.map(t=>'<button class="chip'+(progFilter===t.key?' on':'')+'" onclick="renderProgressTab(&quot;'+t.key+'&quot;)" style="font-size:12px">'+t.label+' ('+t.count+')</button>').join('')+
+  '</div>';
+
+  let items=[];
+  if(progFilter==='groups')items=groups.map(g=>progressCard(g,'group',g.id));
+  else if(progFilter==='students')items=soloStudents.map(s=>progressCard(s,'student',s.id));
+  else if(progFilter==='schools')items=schools.map(s=>progressCard(s,'school',s.id));
+  else if(progFilter==='centers')items=centers.map(c=>progressCard(c,'center',c.id));
+
+  body.innerHTML=tabBar+(items.length?items.join(''):'<div class="empty"><div class="ei">📖</div>لا توجد بيانات في هذه الفئة</div>');
 }
 function progressCard(entity,type,eid){
   const tu=entity.totalUnits||10,lpu=entity.lessonsPerUnit||7;
@@ -3741,15 +3920,14 @@ function progressCard(entity,type,eid){
     '<input id="pnote-'+eid+'" value="'+esc(note)+'" placeholder="ملاحظة..." onblur="saveProgressNote(&quot;'+type+'&quot;,&quot;'+eid+'&quot;,this.value)" style="width:100%;font-size:11px;padding:5px 8px;border-radius:6px;border:1px solid var(--bdr);background:var(--sur2);color:var(--tx1);box-sizing:border-box;margin-top:4px"/>'+
   '</div>';
 }
+function getProgressSrc(type){return{group:db.groups,student:db.students,school:db.schools,center:db.centers}[type]||db.groups;}
 function setProgress(type,eid,unit,lesson){
-  const src=type==='group'?db.groups:db.students;
-  const e=src[eid];if(!e)return;
+  const e=getProgressSrc(type)[eid];if(!e)return;
   e.currentUnit=unit;e.currentLesson=lesson;
   saveDB();renderProgressTab();
 }
 function saveProgressNote(type,eid,val){
-  const src=type==='group'?db.groups:db.students;
-  const e=src[eid];if(!e)return;
+  const e=getProgressSrc(type)[eid];if(!e)return;
   e.progressNote=val.trim();saveDB();
 }
 
