@@ -216,6 +216,7 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
       style="width:100%;margin-top:4px;padding:5px 10px;border-radius:20px;border:1px solid var(--bdr);background:var(--sur2);font-size:12px;color:var(--tx1);outline:none"/>
     <div id="global-results" style="display:none;position:absolute;top:70px;right:16px;left:16px;z-index:999;background:var(--sur1);border:1px solid var(--bdr);border-radius:var(--rs);box-shadow:0 4px 20px rgba(0,0,0,.15);max-height:300px;overflow-y:auto"></div>
     <div class="hdr-sub" id="hdr-sub">جاري التحميل...</div>
+    <div id="hdr-stats" style="display:flex;gap:10px;margin-top:3px;flex-wrap:wrap"></div>
   </div>
   <button onclick="pullFromSheets()" class="btn bsm" title="تحديث من السحابة" style="font-size:16px;padding:5px 10px">🔄</button>
   <button onclick="backupData()" class="btn bsm" title="نسخة احتياطية" style="font-size:16px;padding:5px 10px">💾</button>
@@ -2701,6 +2702,53 @@ function toggleInst(sid,iid,checked){
 }
 
 // ── PUBLIC VIEW (read-only via URL params) ────────────────────────────────────
+// ── HEADER STATS ─────────────────────────────────────────────────────────────
+function updateHeaderStats(){
+  const statsEl=document.getElementById('hdr-stats');
+  if(!statsEl)return;
+
+  const now=new Date();
+  const todayKey=['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][now.getDay()];
+  const nowMins=now.getHours()*60+now.getMinutes();
+
+  // Today's remaining sessions
+  initScheduleDb();
+  const todaySessions=Object.values(db.schedule?.sessions||{}).filter(s=>{
+    if(s.status==='hold')return false;
+    const matchDay=s.day===todayKey||(s.recurrence==='multiday'&&(s.extraDays||[]).includes(todayKey));
+    if(!matchDay)return false;
+    if(s.recurrence==='once'&&s.date!==now.toISOString().split('T')[0])return false;
+    const t=s.recurrence==='multiday'&&(s.extraDays||[]).includes(todayKey)?(s.extraDayTimes||{})[todayKey]||s.time:s.time;
+    const [h,m]=t.split(':').map(Number);
+    return(h*60+m)>nowMins;
+  });
+
+  // This week's payment installments due
+  const weekDays=['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+  const weekStart=new Date(now);weekStart.setDate(now.getDate()-now.getDay());weekStart.setHours(0,0,0,0);
+  const weekEnd=new Date(weekStart);weekEnd.setDate(weekStart.getDate()+6);weekEnd.setHours(23,59,59,999);
+
+  let weekPayments=0;
+  Object.values(db.students).forEach(s=>{
+    if(s.withdrawn)return;
+    (s.installments||[]).forEach(inst=>{
+      if(!inst.paid&&inst.date){
+        const d=new Date(inst.date);
+        if(d>=weekStart&&d<=weekEnd)weekPayments++;
+      }
+    });
+  });
+
+  const parts=[];
+  if(todaySessions.length>0){
+    parts.push('<span style="font-size:11px;background:rgba(99,102,241,.15);color:#a5b4fc;padding:2px 8px;border-radius:99px">📅 '+todaySessions.length+' حصة اليوم</span>');
+  }
+  if(weekPayments>0){
+    parts.push('<span style="font-size:11px;background:rgba(245,158,11,.15);color:#fbbf24;padding:2px 8px;border-radius:99px">💰 '+weekPayments+' دفعة هذا الأسبوع</span>');
+  }
+  statsEl.innerHTML=parts.join('');
+}
+
 // ── LATE PAYMENTS NOTIFICATION ───────────────────────────────────────────────
 function checkLatePayments(){
   const today=new Date();
@@ -3557,7 +3605,7 @@ function renderGroupSchedule(gid){
 checkPublicView();
 loadDB().then(()=>{
   if(window._publicView)showPublicView();
-  else checkLatePayments();
+  else{checkLatePayments();updateHeaderStats();}
 });
 </script>
 </body>
