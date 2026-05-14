@@ -2950,8 +2950,9 @@ function exportCard(type,eid){
         ${type==='student'&&sem?'<div style="font-size:11px;color:#6366f1;margin-top:2px">'+sem+'</div>':''}
       </div>
       <div style="text-align:left">
-        <div style="font-size:11px;color:#6b7280">التاريخ</div>
+        <div style="font-size:11px;color:#6b7280">تاريخ الدفعة</div>
         <div style="font-size:13px;font-weight:600;color:#374151">${receiptDate}</div>
+        <div style="font-size:10px;color:#9ca3af;margin-top:2px">طباعة: ${new Date().toISOString().split('T')[0]}</div>
       </div>
     </div>
 
