@@ -1721,7 +1721,7 @@ function renderStDet(id){
         <div class="av">${ini}</div>
         <div>
           <div style="font-size:15px;font-weight:600">${s.name}</div>
-          <div style="font-size:11px;color:var(--tx3)">${s.groupName||'بدون مجموعة'}${s.phone?' · 📱 <a href="tel:'+s.phone+'" style="color:var(--bl-t);text-decoration:none">'+s.phone+'</a>':''}${s.parentPhone?' · 👨‍👦 <a href="tel:'+s.parentPhone+'" style="color:var(--am-t);text-decoration:none">'+s.parentPhone+'</a>':''}${s.notes?' · '+s.notes:''}</div>
+          <div style="font-size:11px;color:var(--tx3)">${s.groupName||'بدون مجموعة'}${s.phone?' · <span onclick="showPhoneMenu(&quot;'+s.phone+'&quot;,&quot;الطالب&quot;)" style="color:var(--bl-t);cursor:pointer">📱 '+s.phone+'</span>':''}${s.parentPhone?' · <span onclick="showPhoneMenu(&quot;'+s.parentPhone+'&quot;,&quot;ولي الأمر&quot;)" style="color:var(--am-t);cursor:pointer">👨‍👦 '+s.parentPhone+'</span>':''}${s.notes?' · '+s.notes:''}</div>
           <span class="tag tp" style="display:inline-block;margin-top:3px">${eL}</span>
         </div>
       </div>
@@ -3076,16 +3076,13 @@ function exportCard(type,eid,specificPid){
   `;
   document.body.appendChild(card);
 
+  const stPhone=type==='student'?e.phone:'';
+  const parentPhone=type==='student'?e.parentPhone:'';
   html2canvas(card,{scale:2.5,backgroundColor:'#fff',useCORS:true}).then(canvas=>{
     document.body.removeChild(card);
-    const link=document.createElement('a');
-    link.download='وصل-'+name+'-'+receiptNum+'.png';
-    link.href=canvas.toDataURL('image/png');
-    link.click();
-  }).catch(err=>{
-    document.body.removeChild(card);
-    alert('حدث خطأ أثناء إنشاء الوصل');
-  });
+    window._lastCanvas={dataUrl:canvas.toDataURL('image/png'),filename:'وصل-'+name+'-'+receiptNum+'.png',stPhone,parentPhone};
+    showShareModal('وصل');
+  }).catch(err=>{document.body.removeChild(card);alert('حدث خطأ');});
 }
 
 function exportStatement(type,eid){
@@ -3178,13 +3175,90 @@ function exportStatement(type,eid){
     </div>
   `;
   document.body.appendChild(card);
+  const ePhone=type==='student'?e.phone:'';
+  const eParentPhone=type==='student'?e.parentPhone:'';
   html2canvas(card,{scale:2,backgroundColor:'#fff',useCORS:true}).then(canvas=>{
     document.body.removeChild(card);
-    const link=document.createElement('a');
-    link.download='كشف-حساب-'+name+'-'+today+'.png';
-    link.href=canvas.toDataURL('image/png');
-    link.click();
+    window._lastCanvas={dataUrl:canvas.toDataURL('image/png'),filename:'كشف-حساب-'+name+'-'+today+'.png',stPhone:ePhone,parentPhone:eParentPhone};
+    showShareModal('كشف الحساب');
   }).catch(()=>document.body.removeChild(card));
+}
+
+// ── SHARE MODAL ──────────────────────────────────────────────────────────────
+function openWA(num){window.open('https://wa.me/'+num,'_blank');}
+function downloadLastCanvas(){
+  const c=window._lastCanvas;if(!c)return;
+  const a=document.createElement('a');a.download=c.filename;a.href=c.dataUrl;a.click();
+}
+function showShareModal(label){
+  const c=window._lastCanvas;if(!c)return;
+  const dlBtn='<button class="btn bp" onclick="closeModal();downloadLastCanvas()">⬇ تحميل '+label+'</button>';
+  const waStyle='style="background:#f0fdf4;color:#15803d;border:1px solid #86efac"';
+  const wpStyle='style="background:#fff7ed;color:#ea580c;border:1px solid #fed7aa"';
+  let btns=dlBtn;
+  if(c.stPhone){
+    const n='962'+c.stPhone.replace(/[^0-9]/g,'').replace(/^0/,'');
+    btns+='<button class="btn" '+waStyle+' onclick="closeModal();openWA(&quot;'+n+'&quot;)">💬 واتساب الطالب ('+c.stPhone+')</button>';
+  }
+  if(c.parentPhone){
+    const n='962'+c.parentPhone.replace(/[^0-9]/g,'').replace(/^0/,'');
+    btns+='<button class="btn" '+wpStyle+' onclick="closeModal();openWA(&quot;'+n+'&quot;)">💬 واتساب ولي الأمر ('+c.parentPhone+')</button>';
+  }
+  showModal('إرسال '+label,'<div style="display:flex;flex-direction:column;gap:8px;padding:4px 0">'+btns+'</div>','<button class="btn" onclick="closeModal()">إغلاق</button>');
+}
+
+// ── PHONE ACTIONS ─────────────────────────────────────────────────────────────
+function showPhoneMenu(phone,label){
+  if(!phone)return;
+  const clean=phone.replace(/[^0-9+]/g,'');
+  const wa='962'+clean.replace(/^0/,'');
+  showModal(label||'التواصل',
+    '<div style="display:flex;flex-direction:column;gap:10px;padding:8px 0">'+
+      '<a href="tel:'+clean+'" style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--sur2);border-radius:var(--rs);text-decoration:none;color:var(--tx1)" onclick="closeModal()">'+
+        '<span style="font-size:24px">📞</span>'+
+        '<div><div style="font-weight:600">اتصال</div><div style="font-size:12px;color:var(--tx3)">'+phone+'</div></div>'+
+      '</a>'+
+      '<a href="https://wa.me/'+wa+'" target="_blank" style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:#f0fdf4;border-radius:var(--rs);text-decoration:none;color:var(--tx1)" onclick="closeModal()">'+
+        '<span style="font-size:24px">💬</span>'+
+        '<div><div style="font-weight:600;color:#15803d">واتساب</div><div style="font-size:12px;color:var(--tx3)">'+phone+'</div></div>'+
+      '</a>'+
+    '</div>',
+    '<button class="btn" onclick="closeModal()">إلغاء</button>');
+}
+
+async function shareImage(canvas,filename,phone,label){
+  // Try Web Share API first (mobile)
+  if(navigator.share&&navigator.canShare){
+    try{
+      canvas.toBlob(async blob=>{
+        const file=new File([blob],filename,{type:'image/png'});
+        if(navigator.canShare({files:[file]})){
+          await navigator.share({files:[file],title:filename});
+          return;
+        }
+        downloadAndWhatsApp(canvas,filename,phone,label);
+      },'image/png');
+      return;
+    }catch(e){}
+  }
+  downloadAndWhatsApp(canvas,filename,phone,label);
+}
+
+function downloadAndWhatsApp(canvas,filename,phone,label){
+  // Download image
+  const link=document.createElement('a');
+  link.download=filename;
+  link.href=canvas.toDataURL('image/png');
+  link.click();
+  // Offer WhatsApp
+  if(phone){
+    const clean=phone.replace(/[^0-9+]/g,'');
+    const wa='962'+clean.replace(/^0/,'');
+    setTimeout(()=>{
+      if(confirm('فتح واتساب لإرسال '+label+'؟'))
+        window.open('https://wa.me/'+wa,'_blank');
+    },800);
+  }
 }
 
 function copyLink(type,id){
