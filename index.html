@@ -226,19 +226,15 @@ input[readonly]{background:var(--sur2);color:var(--tx2)}
 </header>
 
 <nav>
-  <button class="nb on" onclick="TAB('schedule')">📅 البرنامج</button>
-  <button class="nb" onclick="TAB('progress')">📖 السير</button>
-  <button class="nb" onclick="TAB('exams')">📝 الامتحانات</button>
-  <button class="nb" onclick="TAB('pay')">💰 تسجيل دفعة</button>
-  <button class="nb" onclick="TAB('groups')">🗂 المجموعات</button>
-  <button class="nb" onclick="TAB('students')">👥 الطلاب</button>
-  <button class="nb" onclick="TAB('centers')">🏢 المراكز</button>
-  <button class="nb" onclick="TAB('schools')">🏫 المدارس</button>
-  <button class="nb" onclick="TAB('dosiat')">📚 الدوسيات</button>
-  <button class="nb" onclick="TAB('reports')">📊 التقارير</button>
+  <button class="nb on" onclick="MTAB('program')">📅 البرنامج</button>
+  <button class="nb" onclick="MTAB('myclass')">👥 طلابي</button>
+  <button class="nb" onclick="MTAB('institutions')">🏢 المؤسسات</button>
+  <button class="nb" onclick="MTAB('payments')">💰 الدفعات</button>
+  <button class="nb" onclick="MTAB('reports')">📊 التقارير</button>
 </nav>
 
 <div class="main">
+
 
 <!-- ══════════════════════════════════════════════════════════════
      STUDENTS
@@ -1058,23 +1054,90 @@ function showModal(title,body,btns){
 function closeModal(e){if(!e||e.target.id==='modal')document.getElementById('modal').style.display='none';}
 
 // ── TABS ──────────────────────────────────────────────────────────────────────
+// ── NAVIGATION ────────────────────────────────────────────────────────────────
+const ALL_TABS=['students','add-student','groups','add-group','pay','schools','centers','schedule','dosiat','progress','exams','reports','detail'];
+const MAIN_TABS=['program','myclass','institutions','payments','reports'];
+let _curPST='schedule',_curMST='groups',_curIST='schools';
+
+// Sub-nav renderers
+function renderProgramSubNav(active){
+  const btns=[['schedule','📅 الجدول'],['progress','📖 السير'],['exams','📝 الامتحانات']];
+  return '<div style="display:flex;gap:6px;margin-bottom:12px">'+btns.map(([k,l])=>'<button class="chip'+(active===k?' on':'')+'" onclick="TAB(&quot;'+k+'&quot;)" style="font-size:13px;padding:6px 14px">'+l+'</button>').join('')+'</div>';
+}
+function renderMyclassSubNav(active){
+  const btns=[['groups','🗂 المجموعات'],['students','👤 الطلاب']];
+  return '<div style="display:flex;gap:6px;margin-bottom:12px">'+btns.map(([k,l])=>'<button class="chip'+(active===k?' on':'')+'" onclick="TAB(&quot;'+k+'&quot;)" style="font-size:13px;padding:6px 14px">'+l+'</button>').join('')+'</div>';
+}
+function renderInstSubNav(active){
+  const btns=[['schools','🏫 المدارس'],['centers','🏢 المراكز']];
+  return '<div style="display:flex;gap:6px;margin-bottom:12px">'+btns.map(([k,l])=>'<button class="chip'+(active===k?' on':'')+'" onclick="TAB(&quot;'+k+'&quot;)" style="font-size:13px;padding:6px 14px">'+l+'</button>').join('')+'</div>';
+}
+function renderPaySubNav(active){
+  const btns=[['pay','💰 تسجيل دفعة'],['dosiat','📚 الدوسيات']];
+  return '<div style="display:flex;gap:6px;margin-bottom:12px">'+btns.map(([k,l])=>'<button class="chip'+(active===k?' on':'')+'" onclick="TAB(&quot;'+k+'&quot;)" style="font-size:13px;padding:6px 14px">'+l+'</button>').join('')+'</div>';
+}
+
+// Sub-nav container - inject before the tab
+function injectSubNav(tabId, navHtml){
+  const el=document.getElementById(tabId);if(!el)return;
+  const snId='subnav-'+tabId;
+  let sn=document.getElementById(snId);
+  if(!sn){sn=document.createElement('div');sn.id=snId;el.parentNode.insertBefore(sn,el);}
+  sn.innerHTML=navHtml;
+}
+
+function MTAB(main){
+  if(main==='program')TAB(_curPST||'schedule');
+  else if(main==='myclass')TAB(_curMST||'groups');
+  else if(main==='institutions')TAB(_curIST||'schools');
+  else if(main==='payments')TAB('pay');
+  else if(main==='reports')TAB('reports');
+}
+
 function TAB(t){
-  ['students','add-student','groups','add-group','pay','schools','centers','schedule','dosiat','progress','exams','reports','detail'].forEach(x=>{
+  ALL_TABS.forEach(x=>{
     const e=document.getElementById('tab-'+x);if(e)e.style.display='none';
+    const sn=document.getElementById('subnav-tab-'+x);if(sn)sn.innerHTML='';
   });
-  const mainTabs=['schedule','progress','exams','pay','groups','students','centers','schools','dosiat','reports'];
-  document.querySelectorAll('.nb').forEach((b,i)=>b.classList.toggle('on',mainTabs.indexOf(t)===i));
+  // Clear all injected sub-navs
+  document.querySelectorAll('[id^="subnav-tab-"]').forEach(el=>el.innerHTML='');
+
+  // Determine main tab and active state
+  const progTabs=['schedule','progress','exams'];
+  const myclassTabs=['students','add-student','groups','add-group'];
+  const instTabs=['schools','centers'];
+  const payTabs=['pay','dosiat'];
+
+  let mainIdx=4; // reports
+  if(progTabs.includes(t))mainIdx=0;
+  else if(myclassTabs.includes(t))mainIdx=1;
+  else if(instTabs.includes(t))mainIdx=2;
+  else if(payTabs.includes(t))mainIdx=3;
+  else if(t==='detail')mainIdx=-1;
+
+  document.querySelectorAll('.nb').forEach((b,i)=>b.classList.toggle('on',i===mainIdx));
+
+  // Show the tab
   const el=document.getElementById('tab-'+t);if(el)el.style.display='block';
+
+  // Inject sub-nav
+  if(progTabs.includes(t)){_curPST=t;injectSubNav('tab-'+t,renderProgramSubNav(t));}
+  else if(t==='groups'||t==='add-group'){_curMST='groups';injectSubNav('tab-'+t,renderMyclassSubNav('groups'));}
+  else if(t==='students'||t==='add-student'){_curMST='students';injectSubNav('tab-'+t,renderMyclassSubNav('students'));}
+  else if(instTabs.includes(t)){_curIST=t;injectSubNav('tab-'+t,renderInstSubNav(t));}
+  else if(payTabs.includes(t)){injectSubNav('tab-'+t,renderPaySubNav(t));}
+
+  // Render content
   if(t==='students'){popGrpFilter();renderStudents('');}
   if(t==='add-student'){popGrpSels();}
   if(t==='add-group'){alphaGrpActive=null;}
   if(t==='groups')renderGroups();
   if(t==='schools')renderSchools();
   if(t==='centers')renderCenters();
-  if(t==='schedule'){renderSchedule();}
-  if(t==='dosiat'){renderDosiatTab();}
-  if(t==='progress'){renderProgressTab();}
-  if(t==='exams'){renderExamsTab();}
+  if(t==='schedule')renderSchedule();
+  if(t==='dosiat')renderDosiatTab();
+  if(t==='progress')renderProgressTab();
+  if(t==='exams')renderExamsTab();
   if(t==='reports'){initRptDates();buildRpt();}
   if(t==='pay')resetPW();
 }
