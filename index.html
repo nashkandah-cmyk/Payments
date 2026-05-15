@@ -2035,27 +2035,17 @@ function delPay(type,eid,pid){
 function qPay(type,id){
   const src=type==='student'?db.students:type==='school'?db.schools:db.centers;
   if(!src[id])return;
-  // Store id separately so we can always look up fresh from db
+  const savedEnt=src[id];
+  // TAB('pay') calls resetPW() which clears PW - so set everything AFTER
+  TAB('pay');
+  // Restore entity after reset
   PW.entId=id;
-  PW.ent=src[id];
+  PW.ent=savedEnt;
   PW.entType=type;
   PW.sem=1;
-  // Reset all fields
-  ['pw-amt','pw-rnum','pw-note','pw-srch'].forEach(x=>set(x,''));
-  set('pw-rbook','');
-  if(document.getElementById('pw-month'))set('pw-month','');
-  al('pw-al','','');
-  // Navigate to pay tab
-  TAB('pay');
-  // Set entity and go to step 2
   setEnt(type);
-  set('pw-srch',PW.ent.name);
-  setTimeout(()=>{
-    // Re-fetch fresh reference in case db was updated
-    const freshSrc=PW.entType==='student'?db.students:PW.entType==='school'?db.schools:db.centers;
-    PW.ent=freshSrc[PW.entId]||PW.ent;
-    GS(2);
-  },100);
+  set('pw-srch',savedEnt.name);
+  setTimeout(()=>GS(2),50);
 }
 
 function renderScDet(id){
