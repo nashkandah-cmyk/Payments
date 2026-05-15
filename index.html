@@ -2234,41 +2234,55 @@ function buildRpt(){
   if(rptView==='monthly'){buildMonthlyRpt(d1,d2,q);return;}
   if(rptView==='expected'){buildExpectedRpt(q);return;}
   if(rptView==='receipts'){
-    // Monthly receipts report
     const now=new Date();
-    const selMonth=parseInt(document.getElementById('r-d1')?.value?.split('-')[1])||now.getMonth()+1;
-    const selYear=parseInt(document.getElementById('r-d1')?.value?.split('-')[0])||now.getFullYear();
-    const monthLabel=selYear+'-'+(selMonth<10?'0':'')+selMonth;
+    if(!window._receiptPeriod)window._receiptPeriod='thisMonth';
+    const rp=window._receiptPeriod;
+    const thisM=now.getFullYear()+'-'+(now.getMonth()<9?'0':'')+(now.getMonth()+1);
+    const lastMDate=new Date(now.getFullYear(),now.getMonth()-1,1);
+    const lastM=lastMDate.getFullYear()+'-'+(lastMDate.getMonth()<9?'0':'')+(lastMDate.getMonth()+1);
+    const filterFn=d=>{
+      if(!d)return false;
+      if(rp==='thisMonth')return d.startsWith(thisM);
+      if(rp==='lastMonth')return d.startsWith(lastM);
+      const m=parseInt(d.split('-')[1]);
+      if(rp==='sem1')return m>=9||m===1;
+      if(rp==='sem2')return m>=2&&m<=6;
+      return true;
+    };
+    const periodOpts=[{v:'thisMonth',l:'هذا الشهر'},{v:'lastMonth',l:'الشهر الماضي'},{v:'sem1',l:'فصل أول'},{v:'sem2',l:'فصل ثاني'},{v:'all',l:'كل الفترة'}];
+    const periodBar='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">'+
+      periodOpts.map(o=>'<button class="chip'+(rp===o.v?' on':'')+'" onclick="window._receiptPeriod=&quot;'+o.v+'&quot;;buildRpt()" style="font-size:12px">'+o.l+'</button>').join('')+'</div>';
 
-    // Collect all receipts in selected month
+    // Collect receipts
     const receipts=[];
     Object.values(db.students).forEach(s=>{
-      (s.payments||[]).filter(p=>!p.autoTransfer&&!p.prefilled&&p.receipt&&(p.date||'').startsWith(monthLabel)).forEach(p=>{
+      (s.payments||[]).filter(p=>!p.autoTransfer&&!p.prefilled&&p.receipt&&filterFn(p.date)).forEach(p=>{
         receipts.push({name:s.name,receipt:p.receipt,date:p.date,amount:p.amount,type:'طالب',sem:p.semester==2?'ف٢':'ف١'});
       });
     });
     Object.values(db.schools).forEach(s=>{
-      (s.payments||[]).filter(p=>p.receipt&&(p.date||'').startsWith(monthLabel)).forEach(p=>{
+      (s.payments||[]).filter(p=>p.receipt&&filterFn(p.date)).forEach(p=>{
         receipts.push({name:s.name,receipt:p.receipt,date:p.date,amount:p.amount,type:'مدرسة',sem:''});
       });
     });
     Object.values(db.centers).forEach(c=>{
-      (c.payments||[]).filter(p=>p.receipt&&(p.date||'').startsWith(monthLabel)).forEach(p=>{
+      (c.payments||[]).filter(p=>p.receipt&&filterFn(p.date)).forEach(p=>{
         receipts.push({name:c.name,receipt:p.receipt,date:p.date,amount:p.amount,type:'مركز',sem:''});
       });
     });
     receipts.sort((a,b)=>a.date<b.date?-1:1);
     const total=receipts.reduce((a,r)=>a+r.amount,0);
 
-    document.getElementById('rpt-out').innerHTML=receipts.length?
+    const pLabel=periodOpts.find(o=>o.v===rp)?.l||'';
+    document.getElementById('rpt-out').innerHTML=periodBar+(receipts.length?
       '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
-        '<div class="ct" style="margin:0">🧾 وصولات '+monthLabel+' ('+receipts.length+')</div>'+
+        '<div class="ct" style="margin:0">🧾 '+pLabel+' ('+receipts.length+')</div>'+
         '<div style="font-size:14px;font-weight:700;color:var(--gr-t)">'+fmt(total)+' د.أ</div>'+
       '</div>'+
       '<table class="tbl"><thead><tr><th>#</th><th>رقم الوصل</th><th>الاسم</th><th>التاريخ</th><th>المبلغ</th><th>النوع</th></tr></thead><tbody>'+
       receipts.map((r,i)=>'<tr><td>'+(i+1)+'</td><td style="font-family:monospace;font-size:11px">'+r.receipt+'</td><td>'+r.name+'</td><td>'+r.date+'</td><td style="color:var(--gr-t);font-weight:600">'+fmt(r.amount)+'</td><td>'+r.type+(r.sem?' '+r.sem:'')+'</td></tr>').join('')+
       '</tbody></table></div>':
-      '<div class="empty"><div class="ei">🧾</div>لا توجد وصولات في هذا الشهر<br><small style="color:var(--tx3)">غير نطاق التاريخ لاختيار شهر آخر</small></div>';
+      '<div class="empty"><div class="ei">🧾</div>لا توجد وصولات في هذه الفترة</div>');
     return;
   }
   if(rptView==='lost'){buildLostRpt(q);return;}
