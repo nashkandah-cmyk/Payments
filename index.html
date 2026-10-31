@@ -3205,8 +3205,7 @@ function exportCard(type,eid,specificPid){
   const parentPhone=type==='student'?e.parentPhone:'';
   html2canvas(card,{scale:2.5,backgroundColor:'#fff',useCORS:true}).then(canvas=>{
     document.body.removeChild(card);
-    window._lastCanvas={dataUrl:canvas.toDataURL('image/png'),filename:'وصل-'+name+'-'+receiptNum+'.png',stPhone,parentPhone};
-    showShareModal('وصل');
+    storeCanvas(canvas,'وصل-'+name+'-'+receiptNum+'.png',stPhone,parentPhone,'الوصل');
   }).catch(err=>{document.body.removeChild(card);alert('حدث خطأ');});
 }
 
@@ -3304,20 +3303,40 @@ function exportStatement(type,eid){
   const eParentPhone=type==='student'?e.parentPhone:'';
   html2canvas(card,{scale:2,backgroundColor:'#fff',useCORS:true}).then(canvas=>{
     document.body.removeChild(card);
-    window._lastCanvas={dataUrl:canvas.toDataURL('image/png'),filename:'كشف-حساب-'+name+'-'+today+'.png',stPhone:ePhone,parentPhone:eParentPhone};
-    showShareModal('كشف الحساب');
+    storeCanvas(canvas,'كشف-حساب-'+name+'-'+today+'.png',ePhone,eParentPhone,'كشف الحساب');
   }).catch(()=>document.body.removeChild(card));
 }
 
 // ── SHARE MODAL ──────────────────────────────────────────────────────────────
 function openWA(num){window.open('https://wa.me/'+num,'_blank');}
+const IS_IOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+function storeCanvas(canvas,filename,stPhone,parentPhone,label){
+  window._lastCanvas={dataUrl:canvas.toDataURL('image/png'),filename,stPhone,parentPhone,file:null};
+  // Prepare file BEFORE showing buttons (iOS needs share() directly inside the tap)
+  canvas.toBlob(b=>{if(b&&window._lastCanvas)window._lastCanvas.file=new File([b],filename.replace(/\s/g,'_'),{type:'image/png'});showShareModal(label);},'image/png');
+}
+async function shareLastCanvas(){
+  const c=window._lastCanvas;if(!c)return;
+  if(c.file&&navigator.canShare&&navigator.canShare({files:[c.file]})){
+    try{await navigator.share({files:[c.file]});closeModal();return;}catch(e){if(e.name==='AbortError')return;}
+  }
+  downloadLastCanvas();
+}
 function downloadLastCanvas(){
   const c=window._lastCanvas;if(!c)return;
-  const a=document.createElement('a');a.download=c.filename;a.href=c.dataUrl;a.click();
+  if(IS_IOS){
+    // iOS Safari ignores download attribute: show image to long-press and save
+    showModal('حفظ الصورة','<div style="text-align:center;font-size:13px;color:var(--tx2);margin-bottom:8px">اضغط مطولاً على الصورة ← حفظ في الصور</div><img src="'+c.dataUrl+'" style="width:100%;border-radius:10px"/>','<button class="btn" onclick="closeModal()">إغلاق</button>');
+    return;
+  }
+  closeModal();
+  const a=document.createElement('a');a.download=c.filename;a.href=c.dataUrl;document.body.appendChild(a);a.click();a.remove();
 }
 function showShareModal(label){
   const c=window._lastCanvas;if(!c)return;
-  const dlBtn='<button class="btn bp" onclick="closeModal();downloadLastCanvas()">⬇ تحميل '+label+'</button>';
+  const canShareFiles=!!(c.file&&navigator.canShare&&navigator.canShare({files:[c.file]}));
+  const dlBtn=(canShareFiles?'<button class="btn bp" onclick="shareLastCanvas()">📤 مشاركة '+label+' (واتساب / حفظ)</button>':'')+
+    '<button class="btn'+(canShareFiles?'':' bp')+'" onclick="downloadLastCanvas()">⬇ تحميل '+label+'</button>';
   const waStyle='style="background:#f0fdf4;color:#15803d;border:1px solid #86efac"';
   const wpStyle='style="background:#fff7ed;color:#ea580c;border:1px solid #fed7aa"';
   let btns=dlBtn;
